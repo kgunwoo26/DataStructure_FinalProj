@@ -422,6 +422,26 @@ void printDamages(Damages* damages) {
 	}
 }
 
+void printMenu() {
+	for (int i = 0; i < 5; i++) {
+		printf("\n");
+	}
+	printf("                   ∥=============================================================================∥\n");
+	printf("                   ∥       _          _                 _       _       __                       ∥\n");
+	printf("                   ∥      / \\   _ __ (_)_ __ ___   __ _| |   __| | ___ / _| ___ _ __   ___ ___   ∥\n");
+	printf("                   ∥     / _ \\ | '_ \\| | '_ ` _ \\ / _` | |  / _` |/ _ \\ |_ / _ \\ '_ \\ / __/ _ \\  ∥ \n");
+	printf("                   ∥    / ___ \\| | | | | | | | | | (_| | | | (_| |  __/  _|  __/ | | | (_|  __/  ∥\n");
+	printf("                   ∥   /_/   \\_\\_| |_|_|_| |_| |_|\\__,_|_|  \\__,_|\\___|_|  \\___|_| |_|\\___\\___|  ∥\n");
+	printf("                   ∥                                                                             ∥\n");
+	printf("                   ================================================================================\n");
+	for (int i = 0; i < 5; i++) {
+		printf("\n");
+	}
+	printf("                                                  ▶   게임 시작\n\n");
+	printf("                                                       랭킹 조회\n\n");
+	printf("                                                       게임 종료\n\n");
+}
+
 int main() {
 	//커서 숨기기
 	CONSOLE_CURSOR_INFO cursorInfo = { 0, };
@@ -430,6 +450,9 @@ int main() {
 	SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
 
 	srand(time(NULL));
+
+	// 메뉴 첫 항목으로 초기 값 지정
+	int selectedMenuIndex = 0;
 
 	// 플레이어 초기화 
 	Player player = { PLAYER_INIT_XPOS };
@@ -456,25 +479,35 @@ int main() {
 	damages.maxCount = 100;
 	damages.damage = (Damage*)malloc(sizeof(Damage) * INIT_MAX_DAMAGE);
 
-	initGame();
+	//initGame();
 	int summonCount = SUMMON_DELAY_TIME;
 
+	//while (1) {
+	//	movePlayer(&player);
+	//	fireWeapon(&player, &bullets);
+
+	//	if (summonCount == SUMMON_DELAY_TIME) {
+	//		summonMonster(&monsters);
+	//		summonCount = 0;
+	//	}
+	//	summonCount++;
+
+	//	printBullets(&bullets, &monsters, &damages);
+	//	printMonsters(&monsters);
+	//	printDamages(&damages);
+
+	//	Sleep(50);
+	//}
+	printMenu();
 	while (1) {
-		movePlayer(&player);
-		fireWeapon(&player, &bullets);
-
-		if (summonCount == SUMMON_DELAY_TIME) {
-			summonMonster(&monsters);
-			summonCount = 0;
+		if (GetAsyncKeyState(0x26) & 0x8000) {
+			selectedMenuIndex;
 		}
-		summonCount++;
+		if (GetAsyncKeyState(0x28) & 0x8000) {
 
-		printBullets(&bullets, &monsters, &damages);
-		printMonsters(&monsters);
-		printDamages(&damages);
-
-		Sleep(50);
+		}
 	}
+
 
 
 }
