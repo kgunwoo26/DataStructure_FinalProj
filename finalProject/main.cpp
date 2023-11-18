@@ -4,11 +4,29 @@
 #include <conio.h>
 #include<time.h>
 
+#include <Mmsystem.h>
+#include <mciapi.h>
+#include <process.h>
+//these two headers are already included in the <Windows.h> header
+#pragma comment(lib, "Winmm.lib")
+
+HANDLE hMusicThread;
+HANDLE hMenuThread;
+
 // TODO: 몬스터, 총알을 링크드 리스트로 구현해도 될지 고민
+
+// 배경 음악
+#define BGM_0 "./src/menu_bgm.mp3"
+#define NAVI_MP3 "./src/navi.mp3"
+#define SELECT_MP3 "./src/select.mp3"
+
+// 메뉴 위치 상수
+#define MENU_CURSOR_XPOS 51
+#define MENU_STRING_XPOS 55
 
 // 플레이어 상수
 #define PLAYER_YPOS 25
-#define PLAYER_INIT_XPOS 1
+#define PLAYER_INIT_XPOS 31
 
 // 총알 상수
 #define INIT_MAX_BULLET 100
@@ -28,13 +46,25 @@
 #define DAMAGE_TIME_COUNT 3
 
 // 공통
-#define INIT_XPOS 10
+#define INIT_XPOS 40
 #define XPOS_GAP 14
+
+// 현재 모드 0: 메뉴 1: 게임 플레이 2: 랭킹
+int currentMode = 0;
+
+// 메뉴 첫 항목으로 초기 값 지정
+int selectedMenuIndex = 0;
 
 // 몬스터 종류
 enum monsterType
 {
 	CAT, COW, SPIDER
+};
+
+// 효과음 종류
+enum sound
+{
+	BGM, NAVI, SELECT, ATTACK, HIT
 };
 
 // 구조체 선언
@@ -128,23 +158,132 @@ void gotoxy(int x, int y) {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
+void PlayMP3(const char* filePath) {
+	char command[256];
+	int delay;
+	sprintf_s(command, "open \"%s\" type mpegvideo alias mp3", filePath);
+	if (strcmp(filePath, NAVI_MP3) == 0) {
+		delay = 150;
+	}
+	else if (strcmp(filePath, SELECT_MP3) == 0) {
+		delay = 2000;
+	}
+	else {
+		delay = 150;
+	}
+	
+	mciSendString(command, NULL, 0, NULL);
+	mciSendString("play mp3", NULL, 0, NULL);
+	Sleep(delay);
+	mciSendString("close mp3", NULL, 0, NULL);
+}
+
+unsigned __stdcall MusicThread(void* filePath) {
+	PlayMP3((const char*)filePath);
+	// 스레드 종료 후 핸들을 닫음
+	_endthreadex(0);
+	return 0;
+}
+
+
+void playBgm() {
+	mciSendString("close mp3", NULL, 0, NULL);
+	char command[256];
+	switch (currentMode) {
+	case 0: sprintf_s(command, "open \"%s\" type mpegvideo alias mp3", BGM_0); break;
+	case 1: break;
+	case 2: break;
+	}
+	mciSendString(command, NULL, 0, NULL);
+	mciSendString("play mp3", NULL, 0, NULL);
+}
+
+void stopBgm() {
+	mciSendString("close mp3", NULL, 0, NULL);
+}
+
+void playNaviSound(void) {
+	const char* musicFilePath = "./src/navi.mp3";
+	hMusicThread = (HANDLE)_beginthreadex(NULL, 0, &MusicThread, (void*)musicFilePath, 0, NULL);
+	// 스레드 종료 대기
+	WaitForSingleObject(hMusicThread, INFINITE);
+	// 스레드 핸들 닫기
+	CloseHandle(hMusicThread);
+}
+
+
+unsigned __stdcall MenuBlinkThread(void* str) {
+	for (int i = 0; i < 4; i++) {
+		gotoxy(MENU_STRING_XPOS, 18 + 2 * (selectedMenuIndex));
+		printf("            ");
+		Sleep(250);
+		gotoxy(MENU_STRING_XPOS, 18 + 2 * (selectedMenuIndex));
+		printf("%s", str);
+		Sleep(250);
+	}
+	// 스레드 종료 후 핸들을 닫음
+	_endthreadex(0);
+	return 0;
+}
+
+
+void blinkSelectedMenu() {
+	const char* menuString = "";
+	switch (currentMode) {
+	case 1: menuString = "게임 시작"; break;
+	}
+	hMenuThread = (HANDLE)_beginthreadex(NULL, 0, &MenuBlinkThread, (void*)menuString, 0, NULL);
+
+	// 스레드 종료 대기
+	WaitForSingleObject(hMusicThread, INFINITE);
+
+	// 스레드 핸들 닫기
+	CloseHandle(hMusicThread);
+}
+
+void playSelectSound(void) {
+	const char* musicFilePath = "./src/select.mp3";
+	blinkSelectedMenu();
+	hMusicThread = (HANDLE)_beginthreadex(NULL, 0, &MusicThread, (void*)musicFilePath, 0, NULL);
+	// 스레드 종료 대기
+	WaitForSingleObject(hMusicThread, INFINITE);
+	stopBgm();
+	// 스레드 핸들 닫기
+	CloseHandle(hMusicThread);
+}
+
+
+void playSound(sound type) {
+	switch (type) {
+	case BGM: playBgm(); break;
+	case NAVI: playNaviSound(); break;
+	case SELECT: playSelectSound();  break;
+	case ATTACK: break;
+	case HIT: break;
+	}
+}
+
+
 // 프로그램 시작 시 스테이지의 모양을 출력
 void printfStage() {
+	gotoxy(0, 0);
 	for (int i = 0; i < 3; i++) {
 		printf("\n");
 	}
 
 	for (int i = 0; i < 21; i++) {
-		printf("   │             │             │             │             │\n");
+		printf("                                 │             │             │             │             │\n");
 	}
-	printf("   └─────────────┴─────────────┴─────────────┴─────────────┘");
+	printf("                                 └─────────────┴─────────────┴─────────────┴─────────────┘");
 	for (int i = 0; i < 3; i++) {
 		printf("\n");
 	}
 }
 
+
 // 게임 초기화 함수. 스테이지와 플레이어를 출력
-void initGame() {
+void startGame() {
+	system("cls");
 	printfStage();
 	gotoxy(INIT_XPOS, PLAYER_YPOS);
 	printf("@");
@@ -437,9 +576,42 @@ void printMenu() {
 	for (int i = 0; i < 5; i++) {
 		printf("\n");
 	}
-	printf("                                                  ▶   게임 시작\n\n");
+	printf("                                                   ▶   게임 시작\n\n");
 	printf("                                                       랭킹 조회\n\n");
 	printf("                                                       게임 종료\n\n");
+}
+
+
+void selectMenu() {
+	currentMode = selectedMenuIndex + 1;
+	playSound(SELECT);
+	if (currentMode == 1) {
+		startGame();
+	}
+}
+
+void moveMenuCursor() {
+	if (GetAsyncKeyState(0x28) & 0x8000) {
+			if (selectedMenuIndex == 2) return;
+			playNaviSound();
+			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			printf(" ");
+			selectedMenuIndex += 1;
+			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			printf("▶");
+	}
+	else if (GetAsyncKeyState(0x26) & 0x8000) {
+			if (selectedMenuIndex == 0) return;
+			playNaviSound();
+			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			printf(" ");
+			selectedMenuIndex -= 1;
+			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			printf("▶");
+	}
+	else if (GetAsyncKeyState(0x0D) & 0x8000) {
+		selectMenu();
+	}
 }
 
 int main() {
@@ -448,14 +620,11 @@ int main() {
 	cursorInfo.dwSize = 1;
 	cursorInfo.bVisible = FALSE;
 	SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
-
 	srand(time(NULL));
 
-	// 메뉴 첫 항목으로 초기 값 지정
-	int selectedMenuIndex = 0;
 
 	// 플레이어 초기화 
-	Player player = { PLAYER_INIT_XPOS };
+	Player player = { 0 };
 
 	// 불렛 초기화
 	Bullets bullets;
@@ -479,33 +648,34 @@ int main() {
 	damages.maxCount = 100;
 	damages.damage = (Damage*)malloc(sizeof(Damage) * INIT_MAX_DAMAGE);
 
-	//initGame();
 	int summonCount = SUMMON_DELAY_TIME;
 
-	//while (1) {
-	//	movePlayer(&player);
-	//	fireWeapon(&player, &bullets);
-
-	//	if (summonCount == SUMMON_DELAY_TIME) {
-	//		summonMonster(&monsters);
-	//		summonCount = 0;
-	//	}
-	//	summonCount++;
-
-	//	printBullets(&bullets, &monsters, &damages);
-	//	printMonsters(&monsters);
-	//	printDamages(&damages);
-
-	//	Sleep(50);
-	//}
 	printMenu();
+	playBgm();
 	while (1) {
-		if (GetAsyncKeyState(0x26) & 0x8000) {
-			selectedMenuIndex;
-		}
-		if (GetAsyncKeyState(0x28) & 0x8000) {
+		switch (currentMode) {
+		case 0:
+			moveMenuCursor();
+			break;
 
+		case 1:
+			movePlayer(&player);
+			fireWeapon(&player, &bullets);
+			if (summonCount == SUMMON_DELAY_TIME) {
+				summonMonster(&monsters);
+				summonCount = 0;
+			}
+			summonCount++;
+			printBullets(&bullets, &monsters, &damages);
+			printMonsters(&monsters);
+			printDamages(&damages);
+			Sleep(50);
+			break;
+
+		case 2:
+			break;
 		}
+		//Sleep(100);
 	}
 
 
