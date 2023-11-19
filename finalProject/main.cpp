@@ -17,6 +17,7 @@ HANDLE hMenuThread;
 
 // 배경 음악
 #define BGM_0 "./src/menu_bgm.mp3"
+#define BGM_1 "./src/stage_bgm.mp3"
 #define NAVI_MP3 "./src/navi.mp3"
 #define SELECT_MP3 "./src/select.mp3"
 
@@ -25,16 +26,16 @@ HANDLE hMenuThread;
 #define MENU_STRING_XPOS 55
 
 // 플레이어 상수
-#define PLAYER_YPOS 25
+#define PLAYER_YPOS 26
 #define PLAYER_INIT_XPOS 31
 
 // 총알 상수
 #define INIT_MAX_BULLET 100
-#define BULLET_INIT_YPOS 23
+#define BULLET_INIT_YPOS 24
 
 // 몬스터 상수
 #define INIT_MAX_MONSTER 100
-#define MONSTER_INIT_YPOS 2
+#define MONSTER_INIT_YPOS 3
 #define SUMMON_DELAY_TIME 100
 #define NUM_MONSTER_TYPE 3
 #define MONSTER_SPEED_CONST 10
@@ -69,7 +70,11 @@ enum sound
 
 // 구조체 선언
 typedef struct player {
+	int fullHp;
+	int hp;
 	int position;
+	int level;
+	int xp;
 }Player;
 
 typedef struct monster {
@@ -81,6 +86,8 @@ typedef struct monster {
 	int speedCount;
 	int size;
 	int damageReceived;
+	int damage;
+	int xp;
 }Monster;
 
 typedef struct monsters {
@@ -119,10 +126,10 @@ typedef struct damages {
 }Damages;
 
 // player의 위치로 커서를 이동
-void gotoPlayer(Player player) {
+void gotoPlayer(Player player, int xpos, int ypos) {
 	COORD coord;
-	coord.X = INIT_XPOS + ((player.position - 1) * XPOS_GAP);
-	coord.Y = PLAYER_YPOS;
+	coord.X = INIT_XPOS + xpos + ((player.position - 1) * XPOS_GAP);
+	coord.Y = PLAYER_YPOS + ypos;
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
@@ -158,10 +165,12 @@ void gotoxy(int x, int y) {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
+// MP3 파일(filepath)을 재생
 void PlayMP3(const char* filePath) {
 	char command[256];
 	int delay;
 	sprintf_s(command, "open \"%s\" type mpegvideo alias mp3", filePath);
+	// 재생하는 효과음에 따라 유지 시간 조정
 	if (strcmp(filePath, NAVI_MP3) == 0) {
 		delay = 150;
 	}
@@ -171,13 +180,13 @@ void PlayMP3(const char* filePath) {
 	else {
 		delay = 150;
 	}
-	
 	mciSendString(command, NULL, 0, NULL);
 	mciSendString("play mp3", NULL, 0, NULL);
 	Sleep(delay);
 	mciSendString("close mp3", NULL, 0, NULL);
 }
 
+// 음악 재생을 위한 쓰레드
 unsigned __stdcall MusicThread(void* filePath) {
 	PlayMP3((const char*)filePath);
 	// 스레드 종료 후 핸들을 닫음
@@ -185,23 +194,25 @@ unsigned __stdcall MusicThread(void* filePath) {
 	return 0;
 }
 
-
+// 배경 음악을 계속 재생하도록 하는 함수
 void playBgm() {
 	mciSendString("close mp3", NULL, 0, NULL);
 	char command[256];
 	switch (currentMode) {
 	case 0: sprintf_s(command, "open \"%s\" type mpegvideo alias mp3", BGM_0); break;
-	case 1: break;
+	case 1: sprintf_s(command, "open \"%s\" type mpegvideo alias mp3", BGM_1); break;
 	case 2: break;
 	}
 	mciSendString(command, NULL, 0, NULL);
 	mciSendString("play mp3", NULL, 0, NULL);
 }
 
+// 배경 음악을 종료하는 함수
 void stopBgm() {
 	mciSendString("close mp3", NULL, 0, NULL);
 }
 
+// 메뉴 탐색 시 효과음 재생
 void playNaviSound(void) {
 	const char* musicFilePath = "./src/navi.mp3";
 	hMusicThread = (HANDLE)_beginthreadex(NULL, 0, &MusicThread, (void*)musicFilePath, 0, NULL);
@@ -211,36 +222,35 @@ void playNaviSound(void) {
 	CloseHandle(hMusicThread);
 }
 
-
+// 메뉴 선택 시 글자 깜빡 거리도록 하는 쓰레드 함수
 unsigned __stdcall MenuBlinkThread(void* str) {
 	for (int i = 0; i < 4; i++) {
-		gotoxy(MENU_STRING_XPOS, 18 + 2 * (selectedMenuIndex));
+		gotoxy(MENU_STRING_XPOS, 19 + 2 * (selectedMenuIndex));
 		printf("            ");
 		Sleep(250);
-		gotoxy(MENU_STRING_XPOS, 18 + 2 * (selectedMenuIndex));
+		gotoxy(MENU_STRING_XPOS, 19 + 2 * (selectedMenuIndex));
 		printf("%s", str);
 		Sleep(250);
 	}
-	// 스레드 종료 후 핸들을 닫음
 	_endthreadex(0);
 	return 0;
 }
 
-
+// 현재 선택된 메뉴를 구별하여 쓰레드 함수로 전달
 void blinkSelectedMenu() {
 	const char* menuString = "";
 	switch (currentMode) {
 	case 1: menuString = "게임 시작"; break;
+	case 3: menuString = "게임 종료"; break;
 	}
 	hMenuThread = (HANDLE)_beginthreadex(NULL, 0, &MenuBlinkThread, (void*)menuString, 0, NULL);
-
 	// 스레드 종료 대기
 	WaitForSingleObject(hMusicThread, INFINITE);
-
 	// 스레드 핸들 닫기
 	CloseHandle(hMusicThread);
 }
 
+// 메뉴 선택시 효과음 재생하는 함수
 void playSelectSound(void) {
 	const char* musicFilePath = "./src/select.mp3";
 	blinkSelectedMenu();
@@ -252,7 +262,7 @@ void playSelectSound(void) {
 	CloseHandle(hMusicThread);
 }
 
-
+// 상황에 맞는 음악 파일을 재생하도록 하는 함수
 void playSound(sound type) {
 	switch (type) {
 	case BGM: playBgm(); break;
@@ -263,11 +273,64 @@ void playSound(sound type) {
 	}
 }
 
+// 유저의 hp를 출력하는 함수
+void printHP(Player* player) {
+	gotoxy(3, 5);
+	printf("HP  ");
+	for (int i = 0; i < player->fullHp; i++) {
+		if (player->hp > i) {
+			printf("■");
+		}
+		else {
+			printf("□");
+		}
+		
+	}
+}
+
+// 유저의 레벨을 출력
+void printLevel(Player* player) {
+	gotoxy(3, 3);
+	printf("레벨: %d", player->level);
+}
+
+// 유저의 경험치를 출력
+void printXP(Player* player) {
+	gotoxy(0, 0);
+	printf("XP ");
+	printf("|");
+	for (int i = 1; i < 116; i++) {
+		if (player->xp < i) {
+			printf(" ");
+		}
+		else {
+			printf("■");
+		}
+	}
+	printf("|");
+}
+
+// 데미지를 받을 경우 플레이어의 HP를 감소시키고 HP를 새로고침
+void getDamage(Player *player, int damageReceived) {
+	player->hp -= damageReceived;
+	printHP(player);
+}
+
+// 몬스터를 처치해 경험치를 얻으면 값을 변경하고 경험치 바를 새로고침
+void getXP(Player* player, int xpReceived) {
+	player->xp += xpReceived;
+	if (player->xp > 115) {
+		player->xp -= 115;
+		player->level++;
+		printLevel(player);
+	}
+	printXP(player);
+}
 
 // 프로그램 시작 시 스테이지의 모양을 출력
 void printfStage() {
 	gotoxy(0, 0);
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 4; i++) {
 		printf("\n");
 	}
 
@@ -284,9 +347,14 @@ void printfStage() {
 // 게임 초기화 함수. 스테이지와 플레이어를 출력
 void startGame() {
 	system("cls");
+	playBgm();
 	printfStage();
 	gotoxy(INIT_XPOS, PLAYER_YPOS);
-	printf("@");
+	printf("|\n");
+	gotoxy(INIT_XPOS, PLAYER_YPOS+1);
+	printf("o\n");
+	gotoxy(INIT_XPOS-1, PLAYER_YPOS+2);
+	printf("/_\\\n");
 }
 
 // 키 값을 입력받아 플레이어의 위치를 이동시킴. (좌우 방향키)
@@ -298,24 +366,40 @@ void movePlayer(Player* player) {
 	if (GetAsyncKeyState(0x25) & 0x8000) {
 		if (currentTime - lastFireTime >= 100) {
 			if (player->position - 1 < 1) return;
-			gotoPlayer(*player);
-			printf("  ");
+			gotoPlayer(*player, 0, 0);
+			printf("     ");
+			gotoPlayer(*player, -2, 1);
+			printf("     ");
+			gotoPlayer(*player, -1, 2);
+			printf("     ");
 
 			player->position -= 1;
-			gotoPlayer(*player);
-			printf("@");
+			gotoPlayer(*player,0,0);
+			printf("|\n");
+			gotoPlayer(*player, 0, 1);
+			printf("o\n");
+			gotoPlayer(*player, -1, 2);
+			printf("/_\\\n");
 			lastFireTime = currentTime;
 		}
 	}
 	if (GetAsyncKeyState(0x27) & 0x8000) {
 		if (currentTime - lastFireTime >= 100) {
 			if (player->position + 1 > 4) return;
-			gotoPlayer(*player);
-			printf("  ");
+			gotoPlayer(*player, 0, 0);
+			printf("     ");
+			gotoPlayer(*player, -2, 1);
+			printf("     ");
+			gotoPlayer(*player, -1, 2);
+			printf("     ");
 
 			player->position += 1;
-			gotoPlayer(*player);
-			printf("@");
+			gotoPlayer(*player, 0, 0);
+			printf("|\n");
+			gotoPlayer(*player, 0, 1);
+			printf("o\n");
+			gotoPlayer(*player, -1, 2);
+			printf("/_\\\n");
 			lastFireTime = currentTime;
 		}
 	}
@@ -418,6 +502,8 @@ void summonMonster(Monsters* monsters) {
 	monster.speedCount = MONSTER_SPEED_CONST / monster.speed;
 	monster.position = position;
 	monster.size = 3;
+	monster.damage = 2;
+	monster.xp = 10;
 
 	if (monsters->count + 1 >= monsters->maxMonster) {
 		monsters->maxMonster *= 2;
@@ -446,9 +532,18 @@ void printMonster(Monster monster) {
 	gotoMonster(monster, 1);
 	printf(" /\\_/\\ ");
 	gotoMonster(monster, 2);
-	printf("( o.o )");
+	printf("( ");
+	printf("\x1b[31m");  // 빨간색 텍스트
+	printf("o");
+	printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
+	printf(".");
+	printf("\x1b[31m");  // 빨간색 텍스트
+	printf("o");
+	printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
+	printf(" )");
 	gotoMonster(monster, 3);
 	printf(" > ^ <");
+	
 }
 
 /**
@@ -465,10 +560,11 @@ void eraseMonster(Monster monster) {
 /**
 * 몬스터를 모두 출력하는 함수
 */
-void printMonsters(Monsters* monsters) {
+void printMonsters(Player *player,Monsters* monsters) {
 	for (int i = monsters->startIndex; i < monsters->count; i++) {
 		if (MONSTER_SPEED_CONST / monsters->monster[i].speed == monsters->monster[i].speedCount) {
 			if (monsters->monster[i].yPos + 1 >= PLAYER_YPOS - monsters->monster[i].size) {
+				getDamage(player,monsters->monster[i].damage);
 				removeMonster(monsters, i);
 				eraseMonster(monsters->monster[i]);
 			}
@@ -491,7 +587,7 @@ void printMonsters(Monsters* monsters) {
 * @params monsters : 몬스터에게 총알이 맞는 지 확인하기 위해 monster 배열을 전달
 * @params damages : 총알이 몬스터에게 맞으면 데미지 객체를 추가하기 위해 damages 배열 전달
 */
-void printBullets(Bullets* bullets, Monsters* monsters, Damages* damages) {
+void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages* damages) {
 
 	// 삭제되지 않은 총알들을 순서대로 출력
 	for (int i = bullets->startIndex; i < bullets->count; i++) {
@@ -516,6 +612,7 @@ void printBullets(Bullets* bullets, Monsters* monsters, Damages* damages) {
 				monsters->monster[j].damageReceived = damage;
 				createDamage(damages, monsters->monster[j], damage);
 				if (monsters->monster[j].life <= 0) {
+					getXP(player, monsters->monster[j].xp);
 					removeMonster(monsters, j);
 					eraseMonster(monsters->monster[j]);
 				}
@@ -573,12 +670,15 @@ void printMenu() {
 	printf("                   ∥   /_/   \\_\\_| |_|_|_| |_| |_|\\__,_|_|  \\__,_|\\___|_|  \\___|_| |_|\\___\\___|  ∥\n");
 	printf("                   ∥                                                                             ∥\n");
 	printf("                   ================================================================================\n");
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < 6; i++) {
 		printf("\n");
 	}
 	printf("                                                   ▶   게임 시작\n\n");
 	printf("                                                       랭킹 조회\n\n");
 	printf("                                                       게임 종료\n\n");
+	for (int i = 0; i < 3; i++) {
+		printf("\n");
+	}
 }
 
 
@@ -588,25 +688,28 @@ void selectMenu() {
 	if (currentMode == 1) {
 		startGame();
 	}
+	else if (currentMode == 3) {
+		exit(0);
+	}
 }
 
 void moveMenuCursor() {
 	if (GetAsyncKeyState(0x28) & 0x8000) {
 			if (selectedMenuIndex == 2) return;
 			playNaviSound();
-			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			gotoxy(MENU_CURSOR_XPOS, 19 + 2 * (selectedMenuIndex));
 			printf(" ");
 			selectedMenuIndex += 1;
-			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			gotoxy(MENU_CURSOR_XPOS, 19 + 2 * (selectedMenuIndex));
 			printf("▶");
 	}
 	else if (GetAsyncKeyState(0x26) & 0x8000) {
 			if (selectedMenuIndex == 0) return;
 			playNaviSound();
-			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			gotoxy(MENU_CURSOR_XPOS, 19 + 2 * (selectedMenuIndex));
 			printf(" ");
 			selectedMenuIndex -= 1;
-			gotoxy(MENU_CURSOR_XPOS, 18 + 2 * (selectedMenuIndex));
+			gotoxy(MENU_CURSOR_XPOS, 19 + 2 * (selectedMenuIndex));
 			printf("▶");
 	}
 	else if (GetAsyncKeyState(0x0D) & 0x8000) {
@@ -622,9 +725,8 @@ int main() {
 	SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
 	srand(time(NULL));
 
-
 	// 플레이어 초기화 
-	Player player = { 0 };
+	Player player = { 10,10,1,1,0 };
 
 	// 불렛 초기화
 	Bullets bullets;
@@ -666,9 +768,12 @@ int main() {
 				summonCount = 0;
 			}
 			summonCount++;
-			printBullets(&bullets, &monsters, &damages);
-			printMonsters(&monsters);
+			printBullets(&player,&bullets, &monsters, &damages);
+			printMonsters(&player,&monsters);
 			printDamages(&damages);
+			printHP(&player);
+			printXP(&player);
+			printLevel(&player);
 			Sleep(50);
 			break;
 
@@ -677,7 +782,5 @@ int main() {
 		}
 		//Sleep(100);
 	}
-
-
 
 }
