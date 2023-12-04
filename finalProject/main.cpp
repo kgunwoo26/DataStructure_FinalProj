@@ -1,3 +1,5 @@
+ï»¿#define _CRT_SECURE_NO_WARNINGS
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
@@ -7,69 +9,106 @@
 #include <Mmsystem.h>
 #include <mciapi.h>
 #include <process.h>
+
 //these two headers are already included in the <Windows.h> header
 #pragma comment(lib, "Winmm.lib")
 
-HANDLE hMusicThread;
-HANDLE hMenuThread;
+#define FILE_NAME "Rank_List.txt"
 
-// TODO: ¸ó½ºÅÍ, ÃÑ¾ËÀ» ¸µÅ©µå ¸®½ºÆ®·Î ±¸ÇöÇØµµ µÉÁö °í¹Î
-
-// ¹è°æ À½¾Ç
+// ë°°ê²½ ìŒì•…
 #define BGM_0 "./src/menu_bgm.mp3"
 #define BGM_1 "./src/stage_bgm.mp3"
 #define NAVI_MP3 "./src/navi.mp3"
 #define SELECT_MP3 "./src/select.mp3"
 
-// ¸Ş´º À§Ä¡ »ó¼ö
+// ë ˆë²¨ì—… ì„ íƒ ë©”ë‰´ ìƒìˆ˜
+#define LEVEL_UP_NUM 4
+#define LEVEL_UP_SELECT_XPOS 10
+#define LEVEL_UP_SELECT_YPOS 3
+#define LEVEL_UP_SELECT_XPOS_GAP 35
+#define LEVEL_UP_SELECT_TITLE_YPOS 15
+#define LEVEL_UP_SELECT_LEVEL_YPOS  17
+#define LEVEL_UP_SELECT_CONTENT_YPOS 19
+
+// ë©”ë‰´ ìœ„ì¹˜ ìƒìˆ˜
 #define MENU_CURSOR_XPOS 51
 #define MENU_STRING_XPOS 55
 
-// ÇÃ·¹ÀÌ¾î »ó¼ö
+// í”Œë ˆì´ì–´ ìƒìˆ˜
 #define PLAYER_YPOS 26
 #define PLAYER_INIT_XPOS 31
 
-// ÃÑ¾Ë »ó¼ö
+// ì´ì•Œ ìƒìˆ˜
 #define INIT_MAX_BULLET 100
 #define BULLET_INIT_YPOS 24
 
-// ¸ó½ºÅÍ »ó¼ö
+// ëª¬ìŠ¤í„° ìƒìˆ˜
 #define INIT_MAX_MONSTER 100
 #define MONSTER_INIT_YPOS 3
 #define SUMMON_DELAY_TIME 100
 #define NUM_MONSTER_TYPE 3
 #define MONSTER_SPEED_CONST 10
 
-// µ¥¹ÌÁö »ó¼ö
+// ë°ë¯¸ì§€ ìƒìˆ˜
 #define INIT_MAX_DAMAGE 100
 #define DAMAGE_XPOS_CONST 3
 #define DAMAGE_TIME 2
 #define DAMAGE_TIME_COUNT 3
 
-// °øÅë
+// ê³µí†µ
 #define INIT_XPOS 40
 #define XPOS_GAP 14
 
-// ÇöÀç ¸ğµå 0: ¸Ş´º 1: °ÔÀÓ ÇÃ·¹ÀÌ 2: ·©Å·
-int currentMode = 0;
+enum color {
+	RED = 31,
+	WHITE = 37,
+};
 
-// ¸Ş´º Ã¹ Ç×¸ñÀ¸·Î ÃÊ±â °ª ÁöÁ¤
-int selectedMenuIndex = 0;
+// í”Œë ˆì´ì–´ ìƒ‰ìƒ ì„¤ì •
+color playerColor = WHITE;
 
-// ¸ó½ºÅÍ Á¾·ù
+// ëª¬ìŠ¤í„° ì¢…ë¥˜
 enum monsterType
 {
 	CAT, COW, SPIDER
 };
 
-// È¿°úÀ½ Á¾·ù
+enum levelUpSelecttype 
+{
+	LIFE = 0,
+	DAMAGE = 1,
+	DEFENCE = 2,
+	RELOAD = 3
+};
+
+// íš¨ê³¼ìŒ ì¢…ë¥˜
 enum sound
 {
 	BGM, NAVI, SELECT, ATTACK, HIT
 };
 
-// ±¸Á¶Ã¼ ¼±¾ğ
+typedef enum weapons {
+	PISTOL, RIFLE, SHOTGUN, SNIPER
+}Weapons;
+
+// ì‚¬ìš©ì ì •ë³´
+struct User {
+	char name[50];
+	int score;
+};
+
+
+// êµ¬ì¡°ì²´ ì„ ì–¸
+struct LevelUpOptions {
+	char title[20];
+	int level;
+	int size[2];
+	char content[50];
+	char picture[20][40];
+};
+
 typedef struct player {
+	Weapons weapons;
 	int fullHp;
 	int hp;
 	int position;
@@ -78,7 +117,7 @@ typedef struct player {
 }Player;
 
 typedef struct monster {
-	int position; // ½ºÅ×ÀÌÁö À§Ä¡ 1-4
+	int position; // ìŠ¤í…Œì´ì§€ ìœ„ì¹˜ 1-4
 	int yPos;
 	monsterType type;
 	int life;
@@ -125,7 +164,150 @@ typedef struct damages {
 	Damage* damage;
 }Damages;
 
-// playerÀÇ À§Ä¡·Î Ä¿¼­¸¦ ÀÌµ¿
+LevelUpOptions levelUpOptionsArray[LEVEL_UP_NUM] = {
+	{"ë¼ì´í”„ ì¦ê°€",0,{25,7},"ë¼ì´í”„ +1",{
+	"    â”Œâ”€â”€â”€â”",
+	"    â”‚   â”‚",
+	"â”Œâ”€â”€â”€â”˜   â””â”€â”€â”€â”",
+	"â”‚           â”‚",
+	"â””â”€â”€â”€â”   â”Œâ”€â”€â”€â”˜",
+	"    â”‚   â”‚",
+	"    â””â”€â”€â”€â”˜"
+	}},
+		{"ë°ë¯¸ì§€ ì¦ê°€",0,{25,8},"ë°ë¯¸ì§€ +1",{
+	"  _________",
+	" [_________]",
+	"  |  .-.  |",
+	"  |,(o.o).|",
+	"  | >|n|< |",
+	"  |` `\"` `|",
+	"  |DAMAGE!|",
+	"  `\"\"\"\"\"\"\"`"
+	}},
+		{"ë°©ì–´ë ¥ ì¦ê°€",0,{25,8},"ë°©ì–´ë ¥ +1",{
+	"   ________",
+	"  / ______ \\",
+	" / /  ||  \\ \\",
+	"/ /___||___\\ \\",
+	"\\ \\---||---/ /",
+	" \\ \\  ||  / / ",
+	"  \\ \\_||_/ / ",
+	"   \\______/ "
+	}}
+
+};
+
+HANDLE hMusicThread;
+HANDLE hMenuThread;
+
+// TODO: ëª¬ìŠ¤í„°, ì´ì•Œì„ ë§í¬ë“œ ë¦¬ìŠ¤íŠ¸ë¡œ êµ¬í˜„í•´ë„ ë ì§€ ê³ ë¯¼
+
+int score = 0;
+
+//íŒŒì¼
+int maxUsers = 50;
+
+// í˜„ì¬ ëª¨ë“œ 0: ë©”ë‰´ 1: ê²Œì„ í”Œë ˆì´ 2: ë­í‚¹
+int currentMode = 0;
+
+// ë©”ë‰´ ì²« í•­ëª©ìœ¼ë¡œ ì´ˆê¸° ê°’ ì§€ì •
+int selectedMenuIndex = 0;
+
+// ëœë¤ìœ¼ë¡œ ì§€ì •ëœ ë ˆë²¨ì—… ì„ íƒ ë²ˆí˜¸
+int levelUpNum[3] = { 0,1,2 };
+
+// ì‚¬ìš©ì ì •ë³´ë¥¼ íŒŒì¼ì—ì„œ ì½ì–´ì˜¤ëŠ” í•¨ìˆ˜
+int readFromFile(struct User* users, const char* filename) {
+	FILE* file = fopen(filename, "r");
+	if (file == NULL) {
+		perror("Error opening file");
+		exit(EXIT_FAILURE);
+	}
+
+	int numUsers = 0;
+	while (fscanf(file, "%s %d", users[numUsers].name, &users[numUsers].score) == 2 && numUsers<=10) {
+		numUsers++;
+	}
+
+	fclose(file);
+	return numUsers;
+}
+
+// ì‚¬ìš©ì ì •ë³´ë¥¼ íŒŒì¼ì— ì €ì¥í•˜ëŠ” í•¨ìˆ˜
+void saveToFile(struct User* users, int numUsers, const char* filename) {
+	FILE* file = fopen(filename, "w");
+	if (file == NULL) {
+		perror("Error opening file");
+		exit(EXIT_FAILURE);
+	}
+
+	for (int i = 0; i < numUsers; ++i) {
+		fprintf(file, "%s %d\n", users[i].name, users[i].score);
+	}
+
+	fclose(file);
+}
+
+// ì‚¬ìš©ì ì •ë³´ë¥¼ ì ìˆ˜ê°€ ë†’ì€ ìˆœìœ¼ë¡œ ì •ë ¬í•˜ëŠ” í•¨ìˆ˜
+void sortByScore(struct User* users, int numUsers) {
+	for (int i = 0; i < numUsers - 1; ++i) {
+		for (int j = 0; j < numUsers - i - 1; ++j) {
+			if (users[j].score < users[j + 1].score) {
+				// í˜„ì¬ ì›ì†Œê°€ ë‹¤ìŒ ì›ì†Œë³´ë‹¤ ì‘ìœ¼ë©´ êµí™˜
+				struct User temp = users[j];
+				users[j] = users[j + 1];
+				users[j + 1] = temp;
+			}
+		}
+	}
+}
+
+// ì‚¬ìš©ì ì •ë³´ ì…ë ¥ ë° ì •ë ¬ ë° ë­í‚¹ ì¶œë ¥ í•¨ìˆ˜
+void showRanking(struct User* users, int maxUsers) {
+	// íŒŒì¼ì—ì„œ ê¸°ì¡´ ì‚¬ìš©ì ì •ë³´ ì½ì–´ì˜¤ê¸°
+	int numUsers = readFromFile(users, FILE_NAME);
+
+	// ìƒˆë¡œìš´ ì‚¬ìš©ì ì •ë³´ ì…ë ¥ ë°›ê¸°
+	/*printf("ì´ë¦„ì„ ì…ë ¥í•´ì£¼ì„¸ìš”! (ì ìˆ˜): ");
+	scanf("%s %d", users[numUsers].name, &users[numUsers].score);
+	numUsers++;*/
+
+	// ì ìˆ˜ë¥¼ ê¸°ì¤€ìœ¼ë¡œ ì‚¬ìš©ì ì •ë³´ ì •ë ¬
+	sortByScore(users, numUsers);
+
+	// íŒŒì¼ì— ì‚¬ìš©ì ì •ë³´ ì €ì¥
+	saveToFile(users, numUsers, FILE_NAME);
+
+	// ì •ë ¬ëœ ì‚¬ìš©ì ì •ë³´ ë° ë“±ìˆ˜ ì¶œë ¥
+	printf("                                    ______   ___   _   _  _   __ _____  _   _  _____ \n");
+	printf("                                    | ___ \\ / _ \\ | \\ | || | / /|_   _|| \\ | ||  __ \\ \n");
+	printf("                                    | |_/ // /_\\ \\|  \\| || |/ /   | |  |  \\| || |  \\/ \n");
+	printf("                                    |    / |  _  || . ` ||    \\   | |  | . ` || | __ \n");
+	printf("                                    | |\\ \\ | | | || |\\  || |\\  \\ _| |_ | |\\  || |_\\ \\ \n ");
+	printf("                                   \\_| \\_|\\_| |_/\\_| \\_/\\_| \\_/ \\___/ \\_| \\_/ \\____/ \n ");
+	printf("\n\n");
+
+	for (int i = 0; i < numUsers; ++i) {
+		if (i >= 9) {
+			printf("                                          %dë“± : %s                   %dì \n\n", i + 1, users[i].name, users[i].score);
+		}
+		else {
+			printf("                                           %dë“± : %s                   %dì \n\n", i + 1, users[i].name, users[i].score);
+		}
+	}
+	for (int i = numUsers; i < 10; i++) {
+		if (i >= 9) {
+			printf("                                          %dë“± : OOO                   OOOOì \n", i + 1);
+		}
+		else {
+			printf("                                           %dë“± : OOO                   OOOOì \n\n", i + 1);
+		}
+	}
+	printf("\n\n< BackSpace   ë©”ì¸ í™”ë©´ìœ¼ë¡œ");
+}
+
+
+// playerì˜ ìœ„ì¹˜ë¡œ ì»¤ì„œë¥¼ ì´ë™
 void gotoPlayer(Player player, int xpos, int ypos) {
 	COORD coord;
 	coord.X = INIT_XPOS + xpos + ((player.position - 1) * XPOS_GAP);
@@ -133,7 +315,7 @@ void gotoPlayer(Player player, int xpos, int ypos) {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
-// bulletÀÇ À§Ä¡·Î Ä¿¼­¸¦ ÀÌµ¿
+// bulletì˜ ìœ„ì¹˜ë¡œ ì»¤ì„œë¥¼ ì´ë™
 void gotoBullet(Bullet bullet) {
 	COORD coord;
 	coord.X = INIT_XPOS + ((bullet.position - 1) * XPOS_GAP);
@@ -141,7 +323,7 @@ void gotoBullet(Bullet bullet) {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
-// monsterÀÇ À§Ä¡¿¡¼­ index °ª ¸¸Å­ y À§Ä¡¸¦ ÀÌµ¿½ÃÅ² °÷À¸·Î Ä¿¼­¸¦ ÀÌµ¿
+// monsterì˜ ìœ„ì¹˜ì—ì„œ index ê°’ ë§Œí¼ y ìœ„ì¹˜ë¥¼ ì´ë™ì‹œí‚¨ ê³³ìœ¼ë¡œ ì»¤ì„œë¥¼ ì´ë™
 void gotoMonster(Monster monster, int index) {
 	COORD coord;
 	coord.X = INIT_XPOS + ((monster.position - 1) * XPOS_GAP) - 3;
@@ -149,7 +331,7 @@ void gotoMonster(Monster monster, int index) {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
-// damageÀÇ À§Ä¡·Î Ä¿¼­¸¦ ÀÌµ¿
+// damageì˜ ìœ„ì¹˜ë¡œ ì»¤ì„œë¥¼ ì´ë™
 void gotoDamage(Damage damage) {
 	COORD coord;
 	coord.X = INIT_XPOS + ((damage.position - 1) * XPOS_GAP) + DAMAGE_XPOS_CONST;
@@ -157,7 +339,7 @@ void gotoDamage(Damage damage) {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
-// x,y À§Ä¡·Î Ä¿¼­¸¦ ÀÌµ¿
+// x,y ìœ„ì¹˜ë¡œ ì»¤ì„œë¥¼ ì´ë™
 void gotoxy(int x, int y) {
 	COORD coord;
 	coord.X = x;
@@ -165,12 +347,12 @@ void gotoxy(int x, int y) {
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
-// MP3 ÆÄÀÏ(filepath)À» Àç»ı
+// MP3 íŒŒì¼(filepath)ì„ ì¬ìƒ
 void PlayMP3(const char* filePath) {
 	char command[256];
 	int delay;
 	sprintf_s(command, "open \"%s\" type mpegvideo alias mp3", filePath);
-	// Àç»ıÇÏ´Â È¿°úÀ½¿¡ µû¶ó À¯Áö ½Ã°£ Á¶Á¤
+	// ì¬ìƒí•˜ëŠ” íš¨ê³¼ìŒì— ë”°ë¼ ìœ ì§€ ì‹œê°„ ì¡°ì •
 	if (strcmp(filePath, NAVI_MP3) == 0) {
 		delay = 150;
 	}
@@ -186,15 +368,15 @@ void PlayMP3(const char* filePath) {
 	mciSendString("close mp3", NULL, 0, NULL);
 }
 
-// À½¾Ç Àç»ıÀ» À§ÇÑ ¾²·¹µå
+// ìŒì•… ì¬ìƒì„ ìœ„í•œ ì“°ë ˆë“œ
 unsigned __stdcall MusicThread(void* filePath) {
 	PlayMP3((const char*)filePath);
-	// ½º·¹µå Á¾·á ÈÄ ÇÚµéÀ» ´İÀ½
+	// ìŠ¤ë ˆë“œ ì¢…ë£Œ í›„ í•¸ë“¤ì„ ë‹«ìŒ
 	_endthreadex(0);
 	return 0;
 }
 
-// ¹è°æ À½¾ÇÀ» °è¼Ó Àç»ıÇÏµµ·Ï ÇÏ´Â ÇÔ¼ö
+// ë°°ê²½ ìŒì•…ì„ ê³„ì† ì¬ìƒí•˜ë„ë¡ í•˜ëŠ” í•¨ìˆ˜
 void playBgm() {
 	mciSendString("close mp3", NULL, 0, NULL);
 	char command[256];
@@ -207,22 +389,22 @@ void playBgm() {
 	mciSendString("play mp3", NULL, 0, NULL);
 }
 
-// ¹è°æ À½¾ÇÀ» Á¾·áÇÏ´Â ÇÔ¼ö
+// ë°°ê²½ ìŒì•…ì„ ì¢…ë£Œí•˜ëŠ” í•¨ìˆ˜
 void stopBgm() {
 	mciSendString("close mp3", NULL, 0, NULL);
 }
 
-// ¸Ş´º Å½»ö ½Ã È¿°úÀ½ Àç»ı
+// ë©”ë‰´ íƒìƒ‰ ì‹œ íš¨ê³¼ìŒ ì¬ìƒ
 void playNaviSound(void) {
 	const char* musicFilePath = "./src/navi.mp3";
 	hMusicThread = (HANDLE)_beginthreadex(NULL, 0, &MusicThread, (void*)musicFilePath, 0, NULL);
-	// ½º·¹µå Á¾·á ´ë±â
+	// ìŠ¤ë ˆë“œ ì¢…ë£Œ ëŒ€ê¸°
 	WaitForSingleObject(hMusicThread, INFINITE);
-	// ½º·¹µå ÇÚµé ´İ±â
+	// ìŠ¤ë ˆë“œ í•¸ë“¤ ë‹«ê¸°
 	CloseHandle(hMusicThread);
 }
 
-// ¸Ş´º ¼±ÅÃ ½Ã ±ÛÀÚ ±ôºı °Å¸®µµ·Ï ÇÏ´Â ¾²·¹µå ÇÔ¼ö
+// ë©”ë‰´ ì„ íƒ ì‹œ ê¸€ì ê¹œë¹¡ ê±°ë¦¬ë„ë¡ í•˜ëŠ” ì“°ë ˆë“œ í•¨ìˆ˜
 unsigned __stdcall MenuBlinkThread(void* str) {
 	for (int i = 0; i < 4; i++) {
 		gotoxy(MENU_STRING_XPOS, 19 + 2 * (selectedMenuIndex));
@@ -236,33 +418,35 @@ unsigned __stdcall MenuBlinkThread(void* str) {
 	return 0;
 }
 
-// ÇöÀç ¼±ÅÃµÈ ¸Ş´º¸¦ ±¸º°ÇÏ¿© ¾²·¹µå ÇÔ¼ö·Î Àü´Ş
+// í˜„ì¬ ì„ íƒëœ ë©”ë‰´ë¥¼ êµ¬ë³„í•˜ì—¬ ì“°ë ˆë“œ í•¨ìˆ˜ë¡œ ì „ë‹¬
 void blinkSelectedMenu() {
 	const char* menuString = "";
 	switch (currentMode) {
-	case 1: menuString = "°ÔÀÓ ½ÃÀÛ"; break;
-	case 3: menuString = "°ÔÀÓ Á¾·á"; break;
+	case 1: menuString = "ê²Œì„ ì‹œì‘"; break;
+	case 2: menuString = "ë­í‚¹ ì¡°íšŒ"; break;
+	case 3: menuString = "ê²Œì„ ì¢…ë£Œ"; break;
 	}
 	hMenuThread = (HANDLE)_beginthreadex(NULL, 0, &MenuBlinkThread, (void*)menuString, 0, NULL);
-	// ½º·¹µå Á¾·á ´ë±â
+	// ìŠ¤ë ˆë“œ ì¢…ë£Œ ëŒ€ê¸°
 	WaitForSingleObject(hMusicThread, INFINITE);
-	// ½º·¹µå ÇÚµé ´İ±â
+	// ìŠ¤ë ˆë“œ í•¸ë“¤ ë‹«ê¸°
 	CloseHandle(hMusicThread);
 }
 
-// ¸Ş´º ¼±ÅÃ½Ã È¿°úÀ½ Àç»ıÇÏ´Â ÇÔ¼ö
+
+// ë©”ë‰´ ì„ íƒì‹œ íš¨ê³¼ìŒ ì¬ìƒí•˜ëŠ” í•¨ìˆ˜
 void playSelectSound(void) {
 	const char* musicFilePath = "./src/select.mp3";
 	blinkSelectedMenu();
 	hMusicThread = (HANDLE)_beginthreadex(NULL, 0, &MusicThread, (void*)musicFilePath, 0, NULL);
-	// ½º·¹µå Á¾·á ´ë±â
+	// ìŠ¤ë ˆë“œ ì¢…ë£Œ ëŒ€ê¸°
 	WaitForSingleObject(hMusicThread, INFINITE);
 	stopBgm();
-	// ½º·¹µå ÇÚµé ´İ±â
+	// ìŠ¤ë ˆë“œ í•¸ë“¤ ë‹«ê¸°
 	CloseHandle(hMusicThread);
 }
 
-// »óÈ²¿¡ ¸Â´Â À½¾Ç ÆÄÀÏÀ» Àç»ıÇÏµµ·Ï ÇÏ´Â ÇÔ¼ö
+// ìƒí™©ì— ë§ëŠ” ìŒì•… íŒŒì¼ì„ ì¬ìƒí•˜ë„ë¡ í•˜ëŠ” í•¨ìˆ˜
 void playSound(sound type) {
 	switch (type) {
 	case BGM: playBgm(); break;
@@ -273,28 +457,82 @@ void playSound(sound type) {
 	}
 }
 
-// À¯ÀúÀÇ hp¸¦ Ãâ·ÂÇÏ´Â ÇÔ¼ö
+void printLevelUpSelect() {
+	// í”„ë ˆì„ ì¶œë ¥
+	for (int i = 0; i < 3; i++) {
+		gotoxy(LEVEL_UP_SELECT_XPOS + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_YPOS);
+		printf("â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”\n");
+		for (int j = 0; j < 21; j++) {
+			gotoxy(LEVEL_UP_SELECT_XPOS + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_YPOS+j+1);
+			printf("â”‚                              â”‚\n");
+		}
+		gotoxy(LEVEL_UP_SELECT_XPOS + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_YPOS+21);
+		printf("â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜\n");
+
+		// ì»¨í…ì¸  ë‚´ìš© ì¶œë ¥
+		gotoxy(LEVEL_UP_SELECT_XPOS + 10 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_TITLE_YPOS);
+		printf("%s ", levelUpOptionsArray[i].title);
+		gotoxy(LEVEL_UP_SELECT_XPOS + 12 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_LEVEL_YPOS);
+		printf("ë ˆë²¨ %d", levelUpOptionsArray[i].level+1);
+		gotoxy(LEVEL_UP_SELECT_XPOS + 11 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_CONTENT_YPOS);
+		printf("%s", levelUpOptionsArray[i].content);
+		for (int j = 0; j < levelUpOptionsArray[i].size[1]; j++) {
+			gotoxy(LEVEL_UP_SELECT_XPOS + 9 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_YPOS + 2 + j);
+			printf("%s", levelUpOptionsArray[i].picture[j]);
+		}
+	}
+	gotoxy(88, 28);
+	printf("ë ˆë²¨ì—… ë³´ìƒ ì„ íƒ: ë°©í–¥í‚¤ â† â†“ â†’");
+}
+
+void printScore() {
+	gotoxy(1, 29);
+	printf("ì ìˆ˜: %dì ",score);
+}
+
+void printInfo() {
+	int damage = levelUpOptionsArray[1].level;
+	int armor = levelUpOptionsArray[2].level;
+	gotoxy(3, 8);
+	printf("ë°ë¯¸ì§€ ");
+	for (int i = 0; i < damage; i++) {
+		printf("â– ");
+	}
+	for (int i = damage; i < 5; i++) {
+		printf("â–¡");
+	}
+	gotoxy(3, 10);
+	printf("ë°©ì–´ë ¥ ");
+	for (int i = 0; i < armor; i++) {
+		printf("â– ");
+	}
+	for (int i = damage; i < 5; i++) {
+		printf("â–¡");
+	}
+}
+
+// ìœ ì €ì˜ hpë¥¼ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜
 void printHP(Player* player) {
-	gotoxy(3, 5);
+	gotoxy(4, 6);
 	printf("HP  ");
 	for (int i = 0; i < player->fullHp; i++) {
 		if (player->hp > i) {
-			printf("¡á");
+			printf("â– ");
 		}
 		else {
-			printf("¡à");
+			printf("â–¡");
 		}
 		
 	}
 }
 
-// À¯ÀúÀÇ ·¹º§À» Ãâ·Â
+// ìœ ì €ì˜ ë ˆë²¨ì„ ì¶œë ¥
 void printLevel(Player* player) {
-	gotoxy(3, 3);
-	printf("·¹º§: %d", player->level);
+	gotoxy(3, 4);
+	printf("ë ˆë²¨: %d", player->level);
 }
 
-// À¯ÀúÀÇ °æÇèÄ¡¸¦ Ãâ·Â
+// ìœ ì €ì˜ ê²½í—˜ì¹˜ë¥¼ ì¶œë ¥
 void printXP(Player* player) {
 	gotoxy(0, 0);
 	printf("XP ");
@@ -304,30 +542,32 @@ void printXP(Player* player) {
 			printf(" ");
 		}
 		else {
-			printf("¡á");
+			printf("â– ");
 		}
 	}
 	printf("|");
 }
 
-// µ¥¹ÌÁö¸¦ ¹ŞÀ» °æ¿ì ÇÃ·¹ÀÌ¾îÀÇ HP¸¦ °¨¼Ò½ÃÅ°°í HP¸¦ »õ·Î°íÄ§
+// ë°ë¯¸ì§€ë¥¼ ë°›ì„ ê²½ìš° í”Œë ˆì´ì–´ì˜ HPë¥¼ ê°ì†Œì‹œí‚¤ê³  HPë¥¼ ìƒˆë¡œê³ ì¹¨
 void getDamage(Player *player, int damageReceived) {
 	player->hp -= damageReceived;
 	printHP(player);
 }
 
-// ¸ó½ºÅÍ¸¦ Ã³Ä¡ÇØ °æÇèÄ¡¸¦ ¾òÀ¸¸é °ªÀ» º¯°æÇÏ°í °æÇèÄ¡ ¹Ù¸¦ »õ·Î°íÄ§
+// ëª¬ìŠ¤í„°ë¥¼ ì²˜ì¹˜í•´ ê²½í—˜ì¹˜ë¥¼ ì–»ìœ¼ë©´ ê°’ì„ ë³€ê²½í•˜ê³  ê²½í—˜ì¹˜ ë°”ë¥¼ ìƒˆë¡œê³ ì¹¨
 void getXP(Player* player, int xpReceived) {
 	player->xp += xpReceived;
 	if (player->xp > 115) {
 		player->xp -= 115;
 		player->level++;
 		printLevel(player);
+		printLevelUpSelect();
+		currentMode = 3;
 	}
 	printXP(player);
 }
 
-// ÇÁ·Î±×·¥ ½ÃÀÛ ½Ã ½ºÅ×ÀÌÁöÀÇ ¸ğ¾çÀ» Ãâ·Â
+// í”„ë¡œê·¸ë¨ ì‹œì‘ ì‹œ ìŠ¤í…Œì´ì§€ì˜ ëª¨ì–‘ì„ ì¶œë ¥
 void printfStage() {
 	gotoxy(0, 0);
 	for (int i = 0; i < 4; i++) {
@@ -335,20 +575,34 @@ void printfStage() {
 	}
 
 	for (int i = 0; i < 21; i++) {
-		printf("                                 ¦¢             ¦¢             ¦¢             ¦¢             ¦¢\n");
+		printf("                                 â”‚             â”‚             â”‚             â”‚             â”‚\n");
 	}
-	printf("                                 ¦¦¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦ª¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦ª¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦ª¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¥");
+	printf("                                 â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜");
 	for (int i = 0; i < 3; i++) {
 		printf("\n");
 	}
 }
 
+void printWeapon() {
+	gotoxy(106, 3);
+	printf("í˜„ì¬ ë¬´ê¸°");
+	gotoxy(105, 4);
+	printf("   ______.");
+	gotoxy(105, 5);
+	printf(" ~(_]----'");
+	gotoxy(105, 6);
+	printf(" /_( ");
+	gotoxy(107, 8);
+	printf("ê¶Œì´");
+}
 
-// °ÔÀÓ ÃÊ±âÈ­ ÇÔ¼ö. ½ºÅ×ÀÌÁö¿Í ÇÃ·¹ÀÌ¾î¸¦ Ãâ·Â
+
+// ê²Œì„ ì´ˆê¸°í™” í•¨ìˆ˜. ìŠ¤í…Œì´ì§€ì™€ í”Œë ˆì´ì–´ë¥¼ ì¶œë ¥
 void startGame() {
 	system("cls");
 	playBgm();
 	printfStage();
+	printWeapon();
 	gotoxy(INIT_XPOS, PLAYER_YPOS);
 	printf("|\n");
 	gotoxy(INIT_XPOS, PLAYER_YPOS+1);
@@ -357,9 +611,9 @@ void startGame() {
 	printf("/_\\\n");
 }
 
-// Å° °ªÀ» ÀÔ·Â¹Ş¾Æ ÇÃ·¹ÀÌ¾îÀÇ À§Ä¡¸¦ ÀÌµ¿½ÃÅ´. (ÁÂ¿ì ¹æÇâÅ°)
+// í‚¤ ê°’ì„ ì…ë ¥ë°›ì•„ í”Œë ˆì´ì–´ì˜ ìœ„ì¹˜ë¥¼ ì´ë™ì‹œí‚´. (ì¢Œìš° ë°©í–¥í‚¤)
 void movePlayer(Player* player) {
-	static DWORD lastFireTime = 0; // ¸¶Áö¸· ÀÌµ¿ ½Ã°£À» ÃßÀû
+	static DWORD lastFireTime = 0; // ë§ˆì§€ë§‰ ì´ë™ ì‹œê°„ì„ ì¶”ì 
 
 	DWORD currentTime = GetTickCount();
 
@@ -374,7 +628,9 @@ void movePlayer(Player* player) {
 			printf("     ");
 
 			player->position -= 1;
+			
 			gotoPlayer(*player,0,0);
+			printf("\x1b[%dm", playerColor);
 			printf("|\n");
 			gotoPlayer(*player, 0, 1);
 			printf("o\n");
@@ -406,9 +662,9 @@ void movePlayer(Player* player) {
 }
 
 /**
-* ÃÑ¾ËÀ» »ı¼ºÇÏ¿© Bullets.bullet¿¡ Ãß°¡
-* @params bullets : bullet ¹è¿­ÀÇ ÁÖ¼Ò °ª
-* @params playerPos : ÇÃ·¹ÀÌ¾îÀÇ À§Ä¡ (1-4)
+* ì´ì•Œì„ ìƒì„±í•˜ì—¬ Bullets.bulletì— ì¶”ê°€
+* @params bullets : bullet ë°°ì—´ì˜ ì£¼ì†Œ ê°’
+* @params playerPos : í”Œë ˆì´ì–´ì˜ ìœ„ì¹˜ (1-4)
 */
 void createBullet(Bullets* bullets, int playerPos) {
 	Bullet bullet = { playerPos, BULLET_INIT_YPOS };
@@ -416,16 +672,16 @@ void createBullet(Bullets* bullets, int playerPos) {
 }
 
 /**
-* TODO: bullets->bulletÀ» Å¥·Î ¹Ù²Ü ¿¹Á¤
-* bullets¸¦ »èÁ¦
-* ( ÇöÀç´Â bullets->startIndexÀÇ °ªÀ» +1 ÇÏ¿© °¡Àå ¸ÕÀú »ı¼ºµÈ bulletÀ» »èÁ¦)
+* TODO: bullets->bulletì„ íë¡œ ë°”ê¿€ ì˜ˆì •
+* bulletsë¥¼ ì‚­ì œ
+* ( í˜„ì¬ëŠ” bullets->startIndexì˜ ê°’ì„ +1 í•˜ì—¬ ê°€ì¥ ë¨¼ì € ìƒì„±ëœ bulletì„ ì‚­ì œ)
 */
 void removeBullet(Bullets* bullets, int index) {
 	bullets->startIndex++;
 }
 
 /**
-* Ãâ·ÂµÈ ÃÑ¾ËÀ» Ãâ·Â Á¦°Å
+* ì¶œë ¥ëœ ì´ì•Œì„ ì¶œë ¥ ì œê±°
 */
 void eraseBullet(Bullet bullet) {
 	gotoBullet(bullet);
@@ -433,34 +689,34 @@ void eraseBullet(Bullet bullet) {
 }
 
 /**
-* ÃÑ¾ËÀ» ¹ß»çÇÏ´Â ÇÔ¼ö. ½ºÆäÀÌ½º ¹Ù¸¦ ´©¸¦ ½Ã ÃÑ¾ËÀÌ »ı¼º
-* @params player : ÇÃ·¹ÀÌ¾îÀÇ ÁÖ¼Ò °ª
-* @params bullets : bullet ¹è¿­ÀÇ ÁÖ¼Ò °ª
+* ì´ì•Œì„ ë°œì‚¬í•˜ëŠ” í•¨ìˆ˜. ìŠ¤í˜ì´ìŠ¤ ë°”ë¥¼ ëˆ„ë¥¼ ì‹œ ì´ì•Œì´ ìƒì„±
+* @params player : í”Œë ˆì´ì–´ì˜ ì£¼ì†Œ ê°’
+* @params bullets : bullet ë°°ì—´ì˜ ì£¼ì†Œ ê°’
 */
 void fireWeapon(Player* player, Bullets* bullets) {
-	static DWORD lastFireTime = 0; // ¸¶Áö¸· ¹ß»ç ½Ã°£À» ÃßÀû
+	static DWORD lastFireTime = 0; // ë§ˆì§€ë§‰ ë°œì‚¬ ì‹œê°„ì„ ì¶”ì 
 
 	if (bullets->count + 1 >= bullets->maxBullet) {
 		bullets->maxBullet *= 2;
 		bullets->bullet = (Bullet*)realloc(bullets->bullet, sizeof(Bullet) * bullets->maxBullet);
 	}
 
-	// ÇöÀç ½Ã°£À» °¡Á®¿È
+	// í˜„ì¬ ì‹œê°„ì„ ê°€ì ¸ì˜´
 	DWORD currentTime = GetTickCount();
 
 	if (GetAsyncKeyState(0x20) & 0x8000) {
-		// ½ºÆäÀÌ½º ¹Ù°¡ ´­¸° ÈÄ µô·¹ÀÌ ÀÌÀü¿¡´Â ¹ß»çÇÏÁö ¾ÊÀ½
+		// ìŠ¤í˜ì´ìŠ¤ ë°”ê°€ ëˆŒë¦° í›„ ë”œë ˆì´ ì´ì „ì—ëŠ” ë°œì‚¬í•˜ì§€ ì•ŠìŒ
 		if (currentTime - lastFireTime >= 500) {
 			createBullet(bullets, player->position);
-			lastFireTime = currentTime; // ¸¶Áö¸· ¹ß»ç ½Ã°£ ¾÷µ¥ÀÌÆ®
+			lastFireTime = currentTime; // ë§ˆì§€ë§‰ ë°œì‚¬ ì‹œê°„ ì—…ë°ì´íŠ¸
 		}
 	}
 }
 /**
-*  »õ·Î¿î µ¥¹ÌÁö º¯¼ö¸¦ ¸ó½ºÅÍÀÇ À§Ä¡ ¹Ù·Î À§·Î »ı¼º
-*  @params damages : damage ¹è¿­ÀÇ ÁÖ¼Ò °ª
-*  @params monster : µ¥¹ÌÁö¸¦ ¹ŞÀº monster
-*  @params damageReceived : ¹ŞÀº µ¥¹ÌÁö °ª
+*  ìƒˆë¡œìš´ ë°ë¯¸ì§€ ë³€ìˆ˜ë¥¼ ëª¬ìŠ¤í„°ì˜ ìœ„ì¹˜ ë°”ë¡œ ìœ„ë¡œ ìƒì„±
+*  @params damages : damage ë°°ì—´ì˜ ì£¼ì†Œ ê°’
+*  @params monster : ë°ë¯¸ì§€ë¥¼ ë°›ì€ monster
+*  @params damageReceived : ë°›ì€ ë°ë¯¸ì§€ ê°’
 */
 void createDamage(Damages* damages, Monster monster, int damageReceived) {
 	Damage damage;
@@ -474,25 +730,25 @@ void createDamage(Damages* damages, Monster monster, int damageReceived) {
 }
 
 /**
-* TODO: monsters->monsterÀ» Å¥·Î ¹Ù²Ü ¿¹Á¤
-* ¸ó½ºÅÍ°¡ ÇÃ·¹ÀÌ¾î¿¡°Ô ´ê¾Ò°Å³ª µ¥¹ÌÁö¸¦ ¹Ş¾Æ Á×Àº °æ¿ì »èÁ¦ÇÏ´Â ÇÔ¼ö
-* (ÇöÀç´Â °¡Àå Ã¹¹øÂ°·Î ¼ÒÈ¯µÈ ¸ó½ºÅÍ¸¦ »èÁ¦ÇÏµµ·Ï ±¸ÇöµÇ¾î ÀÖÀ½)
+* TODO: monsters->monsterì„ íë¡œ ë°”ê¿€ ì˜ˆì •
+* ëª¬ìŠ¤í„°ê°€ í”Œë ˆì´ì–´ì—ê²Œ ë‹¿ì•˜ê±°ë‚˜ ë°ë¯¸ì§€ë¥¼ ë°›ì•„ ì£½ì€ ê²½ìš° ì‚­ì œí•˜ëŠ” í•¨ìˆ˜
+* (í˜„ì¬ëŠ” ê°€ì¥ ì²«ë²ˆì§¸ë¡œ ì†Œí™˜ëœ ëª¬ìŠ¤í„°ë¥¼ ì‚­ì œí•˜ë„ë¡ êµ¬í˜„ë˜ì–´ ìˆìŒ)
 *
-* @params monster : ¸ó½ºÅÍ ¹è¿­ÀÇ ÁÖ¼Ò °ª
-* @params index : monsterÀÇ ÀÎµ¦½º °ª
+* @params monster : ëª¬ìŠ¤í„° ë°°ì—´ì˜ ì£¼ì†Œ ê°’
+* @params index : monsterì˜ ì¸ë±ìŠ¤ ê°’
 */
 void removeMonster(Monsters* monsters, int index) {
 	monsters->startIndex++;
 }
 
 /**
-* ¸ó½ºÅÍ¸¦ Ãß°¡ÇÏ´Â ÇÔ¼ö
-* @params monsters : ¸ó½ºÅÍ ¹è¿­
+* ëª¬ìŠ¤í„°ë¥¼ ì¶”ê°€í•˜ëŠ” í•¨ìˆ˜
+* @params monsters : ëª¬ìŠ¤í„° ë°°ì—´
 */
 void summonMonster(Monsters* monsters) {
 	int position = rand() % 4 + 1;
 	//enum monsterType type = (enum monsterType)(rand() % NUM_MONSTER_TYPE); 
-	enum monsterType type = (enum monsterType)0; // ÀÓ½Ã·Î °í¾çÀÌ·Î °íÁ¤
+	enum monsterType type = (enum monsterType)0; // ì„ì‹œë¡œ ê³ ì–‘ì´ë¡œ ê³ ì •
 
 	Monster monster;
 	monster.yPos = MONSTER_INIT_YPOS;
@@ -513,17 +769,17 @@ void summonMonster(Monsters* monsters) {
 }
 
 /**
-* TODO : ¸ğµç Å¸ÀÔÀÇ ¸ó½ºÅÍ¸¦ Ãâ·ÂÇÏµµ·Ï ¼öÁ¤ ÇÊ¿ä.
-* ¸ó½ºÅÍ¸¦ Ãâ·ÂÇÏ´Â ÇÔ¼ö
-* (ÇöÀç´Â Åä³¢¸¦ Ãâ·ÂÇÏµµ·Ï ±¸ÇöµÊ)
+* TODO : ëª¨ë“  íƒ€ì…ì˜ ëª¬ìŠ¤í„°ë¥¼ ì¶œë ¥í•˜ë„ë¡ ìˆ˜ì • í•„ìš”.
+* ëª¬ìŠ¤í„°ë¥¼ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜
+* (í˜„ì¬ëŠ” í† ë¼ë¥¼ ì¶œë ¥í•˜ë„ë¡ êµ¬í˜„ë¨)
 */
 void printMonster(Monster monster) {
 	gotoMonster(monster, -1);
 	printf("       ");
 	gotoMonster(monster, 0);
 	printf("       ");
-	//TODO : ¸ó½ºÅÍ Ã¼·Â¿¡ ¸ÂÃç¼­ ¼öÁ¤ ÇÊ¿ä
-	//Ã¼·Â ¹Ù Ãâ·Â
+	//TODO : ëª¬ìŠ¤í„° ì²´ë ¥ì— ë§ì¶°ì„œ ìˆ˜ì • í•„ìš”
+	//ì²´ë ¥ ë°” ì¶œë ¥
 	gotoMonster(monster, 0);
 	printf(" ");
 	for (int i = 0; i < monster.life; i += 4) {
@@ -533,13 +789,13 @@ void printMonster(Monster monster) {
 	printf(" /\\_/\\ ");
 	gotoMonster(monster, 2);
 	printf("( ");
-	printf("\x1b[31m");  // »¡°£»ö ÅØ½ºÆ®
+	printf("\x1b[31m");  // ë¹¨ê°„ìƒ‰ í…ìŠ¤íŠ¸
 	printf("o");
-	printf("\x1b[0m");   // »ö»óÀ» ¿ø·¡ »óÅÂ(±âº»°ª)·Î µÇµ¹¸²
+	printf("\x1b[0m");   // ìƒ‰ìƒì„ ì›ë˜ ìƒíƒœ(ê¸°ë³¸ê°’)ë¡œ ë˜ëŒë¦¼
 	printf(".");
-	printf("\x1b[31m");  // »¡°£»ö ÅØ½ºÆ®
+	printf("\x1b[31m");  // ë¹¨ê°„ìƒ‰ í…ìŠ¤íŠ¸
 	printf("o");
-	printf("\x1b[0m");   // »ö»óÀ» ¿ø·¡ »óÅÂ(±âº»°ª)·Î µÇµ¹¸²
+	printf("\x1b[0m");   // ìƒ‰ìƒì„ ì›ë˜ ìƒíƒœ(ê¸°ë³¸ê°’)ë¡œ ë˜ëŒë¦¼
 	printf(" )");
 	gotoMonster(monster, 3);
 	printf(" > ^ <");
@@ -547,8 +803,8 @@ void printMonster(Monster monster) {
 }
 
 /**
-* ¸ó½ºÅÍ Ãâ·ÂÀ» Áö¿ì´Â ÇÔ¼ö
-* @params monster : Ãâ·ÂÀ» Áö¿ï ¸ó½ºÅÍ °´Ã¼
+* ëª¬ìŠ¤í„° ì¶œë ¥ì„ ì§€ìš°ëŠ” í•¨ìˆ˜
+* @params monster : ì¶œë ¥ì„ ì§€ìš¸ ëª¬ìŠ¤í„° ê°ì²´
 */
 void eraseMonster(Monster monster) {
 	for (int i = -1; i < monster.size; i++) {
@@ -558,7 +814,7 @@ void eraseMonster(Monster monster) {
 }
 
 /**
-* ¸ó½ºÅÍ¸¦ ¸ğµÎ Ãâ·ÂÇÏ´Â ÇÔ¼ö
+* ëª¬ìŠ¤í„°ë¥¼ ëª¨ë‘ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜
 */
 void printMonsters(Player *player,Monsters* monsters) {
 	for (int i = monsters->startIndex; i < monsters->count; i++) {
@@ -582,29 +838,30 @@ void printMonsters(Player *player,Monsters* monsters) {
 
 
 /**
-* ÃÑ¾ËÀ» Ãâ·ÂÇÏ´Â ÇÔ¼ö. ÃÑ¾ËÀÇ À§Ä¡¸¦ ¾÷µ¥ÀÌÆ®ÇÔ.
-* @params bullets : bullet ¹è¿­ÀÇ ÁÖ¼Ò °ª
-* @params monsters : ¸ó½ºÅÍ¿¡°Ô ÃÑ¾ËÀÌ ¸Â´Â Áö È®ÀÎÇÏ±â À§ÇØ monster ¹è¿­À» Àü´Ş
-* @params damages : ÃÑ¾ËÀÌ ¸ó½ºÅÍ¿¡°Ô ¸ÂÀ¸¸é µ¥¹ÌÁö °´Ã¼¸¦ Ãß°¡ÇÏ±â À§ÇØ damages ¹è¿­ Àü´Ş
+* ì´ì•Œì„ ì¶œë ¥í•˜ëŠ” í•¨ìˆ˜. ì´ì•Œì˜ ìœ„ì¹˜ë¥¼ ì—…ë°ì´íŠ¸í•¨.
+* @params bullets : bullet ë°°ì—´ì˜ ì£¼ì†Œ ê°’
+* @params monsters : ëª¬ìŠ¤í„°ì—ê²Œ ì´ì•Œì´ ë§ëŠ” ì§€ í™•ì¸í•˜ê¸° ìœ„í•´ monster ë°°ì—´ì„ ì „ë‹¬
+* @params damages : ì´ì•Œì´ ëª¬ìŠ¤í„°ì—ê²Œ ë§ìœ¼ë©´ ë°ë¯¸ì§€ ê°ì²´ë¥¼ ì¶”ê°€í•˜ê¸° ìœ„í•´ damages ë°°ì—´ ì „ë‹¬
 */
 void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages* damages) {
 
-	// »èÁ¦µÇÁö ¾ÊÀº ÃÑ¾ËµéÀ» ¼ø¼­´ë·Î Ãâ·Â
+	// ì‚­ì œë˜ì§€ ì•Šì€ ì´ì•Œë“¤ì„ ìˆœì„œëŒ€ë¡œ ì¶œë ¥
 	for (int i = bullets->startIndex; i < bullets->count; i++) {
-		// ÃÑ¾ËÀÌ Ã¹ À§Ä¡°¡ ¾Æ´Ï¸é Ãâ·Â »èÁ¦
+		// ì´ì•Œì´ ì²« ìœ„ì¹˜ê°€ ì•„ë‹ˆë©´ ì¶œë ¥ ì‚­ì œ
 		if (bullets->bullet[i].yPos != BULLET_INIT_YPOS) {
 			eraseBullet(bullets->bullet[i]);
 		}
 		bullets->bullet[i].yPos -= 1;
 
-		// pass °ªÀÌ false°¡ µÇ¸é ÇØ´ç ÃÑ¾Ë »èÁ¦
+		// pass ê°’ì´ falseê°€ ë˜ë©´ í•´ë‹¹ ì´ì•Œ ì‚­ì œ
 		boolean pass = true;
-		// ÃÑ¾ËÀÌ ½ºÅ×ÀÌÁö¸¦ ³Ñ¾î°¡¸é »èÁ¦
+		boolean levelUp = 0;
+		// ì´ì•Œì´ ìŠ¤í…Œì´ì§€ë¥¼ ë„˜ì–´ê°€ë©´ ì‚­ì œ
 		if (bullets->bullet[i].yPos < 3) {
 			pass = false;
 		}
 		for (int j = monsters->startIndex; j < monsters->count; j++) {
-			// ¸ó½ºÅÍÀÇ À§Ä¡°¡ ÃÑ¾ËÀÇ À§Ä¡¿Í ÀÏÄ¡ÇÒ °æ¿ì µ¥¹ÌÁö »ı¼º, ÃÑ¾Ë Ãâ·ÂÇÏÁö ¾Êµµ·Ï pass¸¦ false·Î º¯°æ
+			// ëª¬ìŠ¤í„°ì˜ ìœ„ì¹˜ê°€ ì´ì•Œì˜ ìœ„ì¹˜ì™€ ì¼ì¹˜í•  ê²½ìš° ë°ë¯¸ì§€ ìƒì„±, ì´ì•Œ ì¶œë ¥í•˜ì§€ ì•Šë„ë¡ passë¥¼ falseë¡œ ë³€ê²½
 			if (monsters->monster[j].position == bullets->bullet[i].position &&
 				monsters->monster[j].yPos + monsters->monster[j].size - 1 >= bullets->bullet[i].yPos) {
 				int damage = bullets->damage;
@@ -612,9 +869,10 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 				monsters->monster[j].damageReceived = damage;
 				createDamage(damages, monsters->monster[j], damage);
 				if (monsters->monster[j].life <= 0) {
-					getXP(player, monsters->monster[j].xp);
 					removeMonster(monsters, j);
 					eraseMonster(monsters->monster[j]);
+					score += 100;
+					levelUp = monsters->monster[j].xp;
 				}
 				pass = false;
 			}
@@ -626,6 +884,11 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 		else {
 			gotoBullet(bullets->bullet[i]);
 			printf("o");
+		}
+
+		// ì´ì•Œ ë•Œë¬¸ì— ì¶œë ¥ì´ ì§€ì›Œì ¸ì„œ ë§¨ ë’¤ë¡œ ëºŒ
+		if (levelUp) {
+			getXP(player, levelUp);
 		}
 	}
 }
@@ -650,7 +913,7 @@ void printDamages(Damages* damages) {
 			printf("%d", damages->damage[i].damageReceived);
 			damages->damage[i].durationCount = 0;
 		}
-		// µ¥¹ÌÁö°¡ ¸î Ä­ ¿Ã¶ó°¥ ¶§±îÁö À¯ÁöµÉ Áö °áÁ¤
+		// ë°ë¯¸ì§€ê°€ ëª‡ ì¹¸ ì˜¬ë¼ê°ˆ ë•Œê¹Œì§€ ìœ ì§€ë  ì§€ ê²°ì •
 		if (damages->damage[i].count > DAMAGE_TIME) {
 			removeDamages(damages, i);
 			eraseDamage(damages->damage[i]);
@@ -662,22 +925,28 @@ void printMenu() {
 	for (int i = 0; i < 5; i++) {
 		printf("\n");
 	}
-	printf("                   ¡«=============================================================================¡«\n");
-	printf("                   ¡«       _          _                 _       _       __                       ¡«\n");
-	printf("                   ¡«      / \\   _ __ (_)_ __ ___   __ _| |   __| | ___ / _| ___ _ __   ___ ___   ¡«\n");
-	printf("                   ¡«     / _ \\ | '_ \\| | '_ ` _ \\ / _` | |  / _` |/ _ \\ |_ / _ \\ '_ \\ / __/ _ \\  ¡« \n");
-	printf("                   ¡«    / ___ \\| | | | | | | | | | (_| | | | (_| |  __/  _|  __/ | | | (_|  __/  ¡«\n");
-	printf("                   ¡«   /_/   \\_\\_| |_|_|_| |_| |_|\\__,_|_|  \\__,_|\\___|_|  \\___|_| |_|\\___\\___|  ¡«\n");
-	printf("                   ¡«                                                                             ¡«\n");
-	printf("                   ================================================================================\n");
+	printf("                   âˆ¥=============================================================================âˆ¥\n");
+	printf("                   âˆ¥       _          _                 _       _       __                       âˆ¥\n");
+	printf("                   âˆ¥      / \\   _ __ (_)_ __ ___   __ _| |   __| | ___ / _| ___ _ __   ___ ___   âˆ¥\n");
+	printf("                   âˆ¥     / _ \\ | '_ \\| | '_ ` _ \\ / _` | |  / _` |/ _ \\ |_ / _ \\ '_ \\ / __/ _ \\  âˆ¥ \n");
+	printf("                   âˆ¥    / ___ \\| | | | | | | | | | (_| | | | (_| |  __/  _|  __/ | | | (_|  __/  âˆ¥\n");
+	printf("                   âˆ¥   /_/   \\_\\_| |_|_|_| |_| |_|\\__,_|_|  \\__,_|\\___|_|  \\___|_| |_|\\___\\___|  âˆ¥\n");
+	printf("                   âˆ¥                                                                             âˆ¥\n");
+	printf("                   ===============================================================================\n");
 	for (int i = 0; i < 6; i++) {
 		printf("\n");
 	}
-	printf("                                                   ¢º   °ÔÀÓ ½ÃÀÛ\n\n");
-	printf("                                                       ·©Å· Á¶È¸\n\n");
-	printf("                                                       °ÔÀÓ Á¾·á\n\n");
+	printf("                                                   â–¶   ê²Œì„ ì‹œì‘\n\n");
+	printf("                                                       ë­í‚¹ ì¡°íšŒ\n\n");
+	printf("                                                       ê²Œì„ ì¢…ë£Œ\n\n");
 	for (int i = 0; i < 3; i++) {
 		printf("\n");
+	}
+	if (selectedMenuIndex != 0) {
+		gotoxy(MENU_CURSOR_XPOS, 19 );
+		printf(" ");
+		gotoxy(MENU_CURSOR_XPOS, 19 + 2 * (selectedMenuIndex));
+		printf("â–¶");
 	}
 }
 
@@ -687,6 +956,18 @@ void selectMenu() {
 	playSound(SELECT);
 	if (currentMode == 1) {
 		startGame();
+	}
+	else if (currentMode == 2) {
+		playBgm();
+		system("cls");
+		// ë™ì  í• ë‹¹
+		struct User* users = (struct User*)malloc(maxUsers * sizeof(struct User));
+		if (users == NULL) {
+			perror("error");
+			exit(EXIT_FAILURE);
+		}
+		showRanking(users, maxUsers);
+		free(users);
 	}
 	else if (currentMode == 3) {
 		exit(0);
@@ -701,7 +982,7 @@ void moveMenuCursor() {
 			printf(" ");
 			selectedMenuIndex += 1;
 			gotoxy(MENU_CURSOR_XPOS, 19 + 2 * (selectedMenuIndex));
-			printf("¢º");
+			printf("â–¶");
 	}
 	else if (GetAsyncKeyState(0x26) & 0x8000) {
 			if (selectedMenuIndex == 0) return;
@@ -710,25 +991,46 @@ void moveMenuCursor() {
 			printf(" ");
 			selectedMenuIndex -= 1;
 			gotoxy(MENU_CURSOR_XPOS, 19 + 2 * (selectedMenuIndex));
-			printf("¢º");
+			printf("â–¶");
 	}
 	else if (GetAsyncKeyState(0x0D) & 0x8000) {
 		selectMenu();
 	}
 }
 
+void moveLevelUpSelectCursor() {
+	// ì™¼ìª½
+	if (GetAsyncKeyState(0x25) & 0x8000) {
+		levelUpOptionsArray[levelUpNum[0]].level++;
+		currentMode = 1;
+		startGame();
+	}
+	// ì•„ë˜
+	else if (GetAsyncKeyState(0x28) & 0x8000) {
+		levelUpOptionsArray[levelUpNum[1]].level++;
+		currentMode = 1;
+		startGame();
+	}
+	// ì˜¤ë¥¸ìª½
+	else if (GetAsyncKeyState(0x27) & 0x8000) {
+		levelUpOptionsArray[levelUpNum[2]].level++;
+		currentMode = 1;
+		startGame();
+	}
+}
+
 int main() {
-	//Ä¿¼­ ¼û±â±â
+	//ì»¤ì„œ ìˆ¨ê¸°ê¸°
 	CONSOLE_CURSOR_INFO cursorInfo = { 0, };
 	cursorInfo.dwSize = 1;
 	cursorInfo.bVisible = FALSE;
 	SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
 	srand(time(NULL));
 
-	// ÇÃ·¹ÀÌ¾î ÃÊ±âÈ­ 
-	Player player = { 10,10,1,1,0 };
+	// í”Œë ˆì´ì–´ ì´ˆê¸°í™” 
+	Player player = { PISTOL,10,10,1,1,110 };
 
-	// ºÒ·¿ ÃÊ±âÈ­
+	// ë¶ˆë › ì´ˆê¸°í™”
 	Bullets bullets;
 	bullets.startIndex = 0;
 	bullets.count = 0;
@@ -736,14 +1038,14 @@ int main() {
 	bullets.damage = 4;
 	bullets.bullet = (Bullet*)malloc(sizeof(Bullet) * INIT_MAX_BULLET);
 
-	// ¸ó½ºÅÍ ÃÊ±âÈ­
+	// ëª¬ìŠ¤í„° ì´ˆê¸°í™”
 	Monsters monsters;
 	monsters.startIndex = 0;
 	monsters.count = 0;
 	monsters.maxMonster = 100;
 	monsters.monster = (Monster*)malloc(sizeof(Monster) * INIT_MAX_MONSTER);
 
-	// µ¥¹ÌÁö ¹è¿­ ÃÊ±âÈ­
+	// ë°ë¯¸ì§€ ë°°ì—´ ì´ˆê¸°í™”
 	Damages damages;
 	damages.count = 0;
 	damages.startIndex = 0;
@@ -768,19 +1070,30 @@ int main() {
 				summonCount = 0;
 			}
 			summonCount++;
-			printBullets(&player,&bullets, &monsters, &damages);
 			printMonsters(&player,&monsters);
 			printDamages(&damages);
+			printScore();
 			printHP(&player);
 			printXP(&player);
+			printInfo();
 			printLevel(&player);
+			printBullets(&player, &bullets, &monsters, &damages);
 			Sleep(50);
 			break;
 
 		case 2:
+			if (GetAsyncKeyState(0x08) & 0x8000) {
+				currentMode = 0;
+				system("cls");
+				printMenu();
+			}
+			break;
+		case 3:
+			moveLevelUpSelectCursor();
 			break;
 		}
-		//Sleep(100);
 	}
 
 }
+
+
