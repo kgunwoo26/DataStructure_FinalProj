@@ -109,6 +109,7 @@ struct LevelUpOptions {
 
 typedef struct player {
 	Weapons weapons;
+	int armor;
 	int fullHp;
 	int hp;
 	int position;
@@ -165,36 +166,46 @@ typedef struct damages {
 }Damages;
 
 LevelUpOptions levelUpOptionsArray[LEVEL_UP_NUM] = {
-	{"라이프 증가",0,{25,7},"라이프 +1",{
-	"    ┌───┐",
-	"    │   │",
-	"┌───┘   └───┐",
-	"│           │",
-	"└───┐   ┌───┘",
-	"    │   │",
-	"    └───┘"
+	{" 라이프 증가",0,{25,7}," 라이프 +1",{
+	"      ┌───┐",
+	"      │   │",
+	"  ┌───┘   └───┐",
+	"  │           │",
+	"  └───┐   ┌───┘",
+	"      │   │",
+	"      └───┘"
 	}},
-		{"데미지 증가",0,{25,8},"데미지 +1",{
-	"  _________",
-	" [_________]",
-	"  |  .-.  |",
-	"  |,(o.o).|",
-	"  | >|n|< |",
-	"  |` `\"` `|",
-	"  |DAMAGE!|",
-	"  `\"\"\"\"\"\"\"`"
+		{" 데미지 증가",0,{25,8}," 데미지 +1",{
+	"    _________",
+	"   [_________]",
+	"    |  .-.  |",
+	"    |,(o.o).|",
+	"    | >|n|< |",
+	"    |` `\"` `|",
+	"    |DAMAGE!|",
+	"    `\"\"\"\"\"\"\"`"
 	}},
-		{"방어력 증가",0,{25,8},"방어력 +1",{
-	"   ________",
-	"  / ______ \\",
-	" / /  ||  \\ \\",
-	"/ /___||___\\ \\",
-	"\\ \\---||---/ /",
-	" \\ \\  ||  / / ",
-	"  \\ \\_||_/ / ",
-	"   \\______/ "
+		{" 방어력 증가",0,{25,8}," 방어력 +1",{
+	"     ________",
+	"    / ______ \\",
+	"   / /  ||  \\ \\",
+	"  / /___||___\\ \\",
+	"  \\ \\---||---/ /",
+	"   \\ \\  ||  / / ",
+	"    \\ \\_||_/ / ",
+	"     \\______/ "
+	}},
+	{"공격 속도 증가",0,{25,9},"공격 속도 +1",{
+	"  ____\\   ______",
+	" /     \\ |      \\",
+	"/______/ |____/  \\",
+	"\\   \\ /     \\/   /",
+	" \\  /        \\_ /_",
+	"  \\/ ____   /\\",
+	"    /  \\   /  \\",
+	"   /\\   \\ /  /",
+	"     \\___\\__/"
 	}}
-
 };
 
 HANDLE hMusicThread;
@@ -457,7 +468,32 @@ void playSound(sound type) {
 	}
 }
 
+void setRandomOption() {
+	int num[3] = { NULL, };
+	for (int i = 0; i < 3; i++) {
+		int position = NULL;
+		bool exist = true;
+		while (exist) {
+			position = rand() % LEVEL_UP_NUM;
+			bool found = false;
+			for (int j = 0; j < i; j++) {
+				if (num[j] == position) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				exist = false;
+				num[i] = position;
+			}
+		}
+		levelUpNum[i] = position;
+	}
+}
+
 void printLevelUpSelect() {
+	// 레벨업 강화 랜덤 배정
+	setRandomOption();
 	// 프레임 출력
 	for (int i = 0; i < 3; i++) {
 		gotoxy(LEVEL_UP_SELECT_XPOS + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_YPOS);
@@ -470,15 +506,16 @@ void printLevelUpSelect() {
 		printf("└──────────────────────────────┘\n");
 
 		// 컨텐츠 내용 출력
-		gotoxy(LEVEL_UP_SELECT_XPOS + 10 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_TITLE_YPOS);
-		printf("%s ", levelUpOptionsArray[i].title);
+
+		gotoxy(LEVEL_UP_SELECT_XPOS + 9 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_TITLE_YPOS);
+		printf("%s ", levelUpOptionsArray[levelUpNum[i]].title);
 		gotoxy(LEVEL_UP_SELECT_XPOS + 12 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_LEVEL_YPOS);
-		printf("레벨 %d", levelUpOptionsArray[i].level+1);
-		gotoxy(LEVEL_UP_SELECT_XPOS + 11 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_CONTENT_YPOS);
-		printf("%s", levelUpOptionsArray[i].content);
-		for (int j = 0; j < levelUpOptionsArray[i].size[1]; j++) {
-			gotoxy(LEVEL_UP_SELECT_XPOS + 9 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_YPOS + 2 + j);
-			printf("%s", levelUpOptionsArray[i].picture[j]);
+		printf("레벨 %d", levelUpOptionsArray[levelUpNum[i]].level+1);
+		gotoxy(LEVEL_UP_SELECT_XPOS + 10 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_CONTENT_YPOS);
+		printf("%s", levelUpOptionsArray[levelUpNum[i]].content);
+		for (int j = 0; j < levelUpOptionsArray[levelUpNum[i]].size[1]; j++) {
+			gotoxy(LEVEL_UP_SELECT_XPOS + 7 + LEVEL_UP_SELECT_XPOS_GAP * (i), LEVEL_UP_SELECT_YPOS + 2 + j);
+			printf("%s", levelUpOptionsArray[levelUpNum[i]].picture[j]);
 		}
 	}
 	gotoxy(88, 28);
@@ -506,7 +543,7 @@ void printInfo() {
 	for (int i = 0; i < armor; i++) {
 		printf("■");
 	}
-	for (int i = damage; i < 5; i++) {
+	for (int i = armor; i < 5; i++) {
 		printf("□");
 	}
 }
@@ -515,7 +552,7 @@ void printInfo() {
 void printHP(Player* player) {
 	gotoxy(4, 6);
 	printf("HP  ");
-	for (int i = 0; i < player->fullHp; i++) {
+	for (int i = 0; i < player->fullHp + levelUpOptionsArray[0].level; i++) {
 		if (player->hp > i) {
 			printf("■");
 		}
@@ -608,6 +645,20 @@ void startGame() {
 	gotoxy(INIT_XPOS, PLAYER_YPOS+1);
 	printf("o\n");
 	gotoxy(INIT_XPOS-1, PLAYER_YPOS+2);
+	printf("/_\\\n");
+}
+
+void reprintGame(Player* player) {
+	system("cls");
+	printHP(player);
+	printfStage();
+	printWeapon();
+	gotoPlayer(*player, 0, 0);
+	printf("\x1b[%dm", playerColor);
+	printf("|\n");
+	gotoPlayer(*player, 0, 1);
+	printf("o\n");
+	gotoPlayer(*player, -1, 2);
 	printf("/_\\\n");
 }
 
@@ -706,7 +757,7 @@ void fireWeapon(Player* player, Bullets* bullets) {
 
 	if (GetAsyncKeyState(0x20) & 0x8000) {
 		// 스페이스 바가 눌린 후 딜레이 이전에는 발사하지 않음
-		if (currentTime - lastFireTime >= 500) {
+		if (currentTime - lastFireTime >= 500 - levelUpOptionsArray[3].level * 50) {
 			createBullet(bullets, player->position);
 			lastFireTime = currentTime; // 마지막 발사 시간 업데이트
 		}
@@ -820,7 +871,7 @@ void printMonsters(Player *player,Monsters* monsters) {
 	for (int i = monsters->startIndex; i < monsters->count; i++) {
 		if (MONSTER_SPEED_CONST / monsters->monster[i].speed == monsters->monster[i].speedCount) {
 			if (monsters->monster[i].yPos + 1 >= PLAYER_YPOS - monsters->monster[i].size) {
-				getDamage(player,monsters->monster[i].damage);
+				getDamage(player,monsters->monster[i].damage - levelUpOptionsArray[2].level);
 				removeMonster(monsters, i);
 				eraseMonster(monsters->monster[i]);
 			}
@@ -867,7 +918,7 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 				int damage = bullets->damage;
 				monsters->monster[j].life -= damage;
 				monsters->monster[j].damageReceived = damage;
-				createDamage(damages, monsters->monster[j], damage);
+				createDamage(damages, monsters->monster[j], damage + levelUpOptionsArray[1].level * 2);
 				if (monsters->monster[j].life <= 0) {
 					removeMonster(monsters, j);
 					eraseMonster(monsters->monster[j]);
@@ -998,24 +1049,24 @@ void moveMenuCursor() {
 	}
 }
 
-void moveLevelUpSelectCursor() {
+void moveLevelUpSelectCursor(Player *player) {
 	// 왼쪽
 	if (GetAsyncKeyState(0x25) & 0x8000) {
 		levelUpOptionsArray[levelUpNum[0]].level++;
 		currentMode = 1;
-		startGame();
+		reprintGame(player);
 	}
 	// 아래
 	else if (GetAsyncKeyState(0x28) & 0x8000) {
 		levelUpOptionsArray[levelUpNum[1]].level++;
 		currentMode = 1;
-		startGame();
+		reprintGame(player);
 	}
 	// 오른쪽
 	else if (GetAsyncKeyState(0x27) & 0x8000) {
 		levelUpOptionsArray[levelUpNum[2]].level++;
 		currentMode = 1;
-		startGame();
+		reprintGame(player);
 	}
 }
 
@@ -1028,7 +1079,7 @@ int main() {
 	srand(time(NULL));
 
 	// 플레이어 초기화 
-	Player player = { PISTOL,10,10,1,1,110 };
+	Player player = { PISTOL,0,10,10,1,1,0 };
 
 	// 불렛 초기화
 	Bullets bullets;
@@ -1072,8 +1123,8 @@ int main() {
 			summonCount++;
 			printMonsters(&player,&monsters);
 			printDamages(&damages);
-			printScore();
 			printHP(&player);
+			printScore();
 			printXP(&player);
 			printInfo();
 			printLevel(&player);
@@ -1089,7 +1140,7 @@ int main() {
 			}
 			break;
 		case 3:
-			moveLevelUpSelectCursor();
+			moveLevelUpSelectCursor(&player);
 			break;
 		}
 	}
