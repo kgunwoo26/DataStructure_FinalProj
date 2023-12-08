@@ -530,16 +530,26 @@ void printScore() {
 void printInfo() {
 	int damage = levelUpOptionsArray[1].level;
 	int armor = levelUpOptionsArray[2].level;
-	gotoxy(3, 8);
-	printf("데미지 ");
+	int attackSpeed = levelUpOptionsArray[3].level;
+	gotoxy(5, 8);
+	printf("데미지  ");
 	for (int i = 0; i < damage; i++) {
 		printf("■");
 	}
 	for (int i = damage; i < 5; i++) {
 		printf("□");
 	}
-	gotoxy(3, 10);
-	printf("방어력 ");
+	gotoxy(2, 10);
+	printf("공격 속도  ");
+	for (int i = 0; i < attackSpeed; i++) {
+		printf("■");
+	}
+	for (int i = attackSpeed; i < 5; i++) {
+		printf("□");
+	}
+
+	gotoxy(5, 12);
+	printf("방어력  ");
 	for (int i = 0; i < armor; i++) {
 		printf("■");
 	}
@@ -550,7 +560,7 @@ void printInfo() {
 
 // 유저의 hp를 출력하는 함수
 void printHP(Player* player) {
-	gotoxy(4, 6);
+	gotoxy(6, 6);
 	printf("HP  ");
 	for (int i = 0; i < player->fullHp + levelUpOptionsArray[0].level; i++) {
 		if (player->hp > i) {
