@@ -22,7 +22,7 @@
 #define SELECT_MP3 "./src/select.mp3"
 
 // 레벨업 선택 메뉴 상수
-#define LEVEL_UP_NUM 4
+#define LEVEL_UP_NUM 6
 #define LEVEL_UP_SELECT_XPOS 10
 #define LEVEL_UP_SELECT_YPOS 3
 #define LEVEL_UP_SELECT_XPOS_GAP 35
@@ -68,10 +68,10 @@ enum color {
 color playerColor = WHITE;
 
 // 몬스터 종류
-enum monsterType
+typedef enum monsterType
 {
 	CAT, COW, SPIDER
-};
+}MonsterType;
 
 enum levelUpSelecttype 
 {
@@ -89,7 +89,7 @@ enum sound
 
 typedef enum weapons {
 	PISTOL, RIFLE, SHOTGUN, SNIPER
-}Weapons;
+}Weapon;
 
 // 사용자 정보
 struct User {
@@ -107,8 +107,9 @@ struct LevelUpOptions {
 	char picture[20][40];
 };
 
+
 typedef struct player {
-	Weapons weapons;
+	Weapon weapon;
 	int armor;
 	int fullHp;
 	int hp;
@@ -117,17 +118,21 @@ typedef struct player {
 	int xp;
 }Player;
 
+typedef struct monsterInfo {
+	int life;
+	int speed;
+	int size;
+	int damage;
+	int xp;
+}MonsterInfo;
+
 typedef struct monster {
 	int position; // 스테이지 위치 1-4
 	int yPos;
-	monsterType type;
-	int life;
-	int speed;
+	MonsterType type;
 	int speedCount;
-	int size;
 	int damageReceived;
-	int damage;
-	int xp;
+	int life;
 }Monster;
 
 typedef struct monsters {
@@ -164,6 +169,12 @@ typedef struct damages {
 	int startIndex;
 	Damage* damage;
 }Damages;
+
+MonsterInfo monsterInfoArray[NUM_MONSTER_TYPE] = {
+	{16,1,3,2,20}, // CAT
+	{28,1,4,4,15}, // COW
+	{40,1,4,6,10}  // SPIDER
+};
 
 LevelUpOptions levelUpOptionsArray[LEVEL_UP_NUM] = {
 	{" 라이프 증가",0,{25,7}," 라이프 +1",{
@@ -205,6 +216,22 @@ LevelUpOptions levelUpOptionsArray[LEVEL_UP_NUM] = {
 	"    /  \\   /  \\",
 	"   /\\   \\ /  /",
 	"     \\___\\__/"
+	}},
+	{"무기 교체",5,{25,6},"  스나이퍼",{
+	"",
+	"",
+	" ____)==/______,_",
+	"/__.-^-|_|''`",
+	"",
+	""
+	}},
+	{"무기 교체",5,{25,6},"  라이플",{
+	"",
+	"",
+	" ____)=======____,_",
+	"/__.-^-|_|''`",
+	"",
+	""
 	}}
 };
 
@@ -212,7 +239,6 @@ HANDLE hMusicThread;
 HANDLE hMenuThread;
 
 // TODO: 몬스터, 총알을 링크드 리스트로 구현해도 될지 고민
-
 int score = 0;
 
 //파일
@@ -226,6 +252,12 @@ int selectedMenuIndex = 0;
 
 // 랜덤으로 지정된 레벨업 선택 번호
 int levelUpNum[3] = { 0,1,2 };
+
+// 몬스터 종류 제한
+int monsterTypeNumLimit = 1;
+
+// 무기 선택 활성화 여부
+bool weaponActivated = false;
 
 // 사용자 정보를 파일에서 읽어오는 함수
 int readFromFile(struct User* users, const char* filename) {
@@ -337,7 +369,7 @@ void gotoBullet(Bullet bullet) {
 // monster의 위치에서 index 값 만큼 y 위치를 이동시킨 곳으로 커서를 이동
 void gotoMonster(Monster monster, int index) {
 	COORD coord;
-	coord.X = INIT_XPOS + ((monster.position - 1) * XPOS_GAP) - 3;
+	coord.X = INIT_XPOS + ((monster.position - 1) * XPOS_GAP) - 5;
 	coord.Y = monster.yPos + index;
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
@@ -481,6 +513,9 @@ void setRandomOption() {
 					found = true;
 					break;
 				}
+			}
+			if (levelUpOptionsArray[position].level >= 5) {
+				found = true;
 			}
 			if (!found) {
 				exist = false;
@@ -630,26 +665,45 @@ void printfStage() {
 	}
 }
 
-void printWeapon() {
+void printWeapon(Weapon weapon) {
 	gotoxy(106, 3);
 	printf("현재 무기");
-	gotoxy(105, 4);
-	printf("   ______.");
-	gotoxy(105, 5);
-	printf(" ~(_]----'");
-	gotoxy(105, 6);
-	printf(" /_( ");
-	gotoxy(107, 8);
-	printf("권총");
+	if (weapon == PISTOL) {
+		gotoxy(105, 4);
+		printf("   ______.");
+		gotoxy(105, 5);
+		printf(" ~(_]----'");
+		gotoxy(105, 6);
+		printf(" /_( ");
+		gotoxy(107, 8);
+		printf("권총");
+	}
+	else if(weapon == RIFLE) {
+		gotoxy(102, 5);
+		printf(" ____)=======____,_");
+		gotoxy(102, 6);
+		printf("/__.-^-|_|''`");
+		gotoxy(107, 8);
+		printf("라이플");
+	}
+	else if (weapon == SNIPER) {
+		gotoxy(102, 5);
+		printf(" ____)==/______,_");
+		gotoxy(102, 6);
+		printf("/__.-^-|_|''`");
+		gotoxy(107, 8);
+		printf("저격총");
+	}
+	
 }
 
 
 // 게임 초기화 함수. 스테이지와 플레이어를 출력
-void startGame() {
+void startGame(Player *player) {
 	system("cls");
 	playBgm();
 	printfStage();
-	printWeapon();
+	printWeapon(player->weapon);
 	gotoxy(INIT_XPOS, PLAYER_YPOS);
 	printf("|\n");
 	gotoxy(INIT_XPOS, PLAYER_YPOS+1);
@@ -662,7 +716,7 @@ void reprintGame(Player* player) {
 	system("cls");
 	printHP(player);
 	printfStage();
-	printWeapon();
+	printWeapon(player->weapon);
 	gotoPlayer(*player, 0, 0);
 	printf("\x1b[%dm", playerColor);
 	printf("|\n");
@@ -808,19 +862,15 @@ void removeMonster(Monsters* monsters, int index) {
 */
 void summonMonster(Monsters* monsters) {
 	int position = rand() % 4 + 1;
-	//enum monsterType type = (enum monsterType)(rand() % NUM_MONSTER_TYPE); 
-	enum monsterType type = (enum monsterType)0; // 임시로 고양이로 고정
+	enum monsterType type = (enum monsterType)(rand() % monsterTypeNumLimit); 
+	
 
 	Monster monster;
 	monster.yPos = MONSTER_INIT_YPOS;
 	monster.type = type;
-	monster.life = 20;
-	monster.speed = 1;
-	monster.speedCount = MONSTER_SPEED_CONST / monster.speed;
+	monster.speedCount = MONSTER_SPEED_CONST / monsterInfoArray[type].speed;
 	monster.position = position;
-	monster.size = 3;
-	monster.damage = 2;
-	monster.xp = 10;
+	monster.life = monsterInfoArray[type].life;
 
 	if (monsters->count + 1 >= monsters->maxMonster) {
 		monsters->maxMonster *= 2;
@@ -832,34 +882,72 @@ void summonMonster(Monsters* monsters) {
 /**
 * TODO : 모든 타입의 몬스터를 출력하도록 수정 필요.
 * 몬스터를 출력하는 함수
-* (현재는 토끼를 출력하도록 구현됨)
 */
 void printMonster(Monster monster) {
 	gotoMonster(monster, -1);
-	printf("       ");
+	printf("            ");
 	gotoMonster(monster, 0);
-	printf("       ");
+	printf("            ");
 	//TODO : 몬스터 체력에 맞춰서 수정 필요
 	//체력 바 출력
 	gotoMonster(monster, 0);
-	printf(" ");
+	if (monster.type == CAT) {
+		printf("   ");
+	}
+	else if (monster.type == COW) {
+		printf("  ");
+	}
+	else if (monster.type == SPIDER) {
+		printf(" ");
+	}
 	for (int i = 0; i < monster.life; i += 4) {
 		printf("-");
 	}
-	gotoMonster(monster, 1);
-	printf(" /\\_/\\ ");
-	gotoMonster(monster, 2);
-	printf("( ");
-	printf("\x1b[31m");  // 빨간색 텍스트
-	printf("o");
-	printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
-	printf(".");
-	printf("\x1b[31m");  // 빨간색 텍스트
-	printf("o");
-	printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
-	printf(" )");
-	gotoMonster(monster, 3);
-	printf(" > ^ <");
+	if (monster.type == CAT) {
+		gotoMonster(monster, 1);
+		printf("   /\\_/\\ ");
+		gotoMonster(monster, 2);
+		printf("  ( ");
+		printf("\x1b[31m");  // 빨간색 텍스트
+		printf("o");
+		printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
+		printf(".");
+		printf("\x1b[31m");  // 빨간색 텍스트
+		printf("o");
+		printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
+		printf(" )");
+		gotoMonster(monster, 3);
+		printf("   > ^ <");
+	}
+	else if (monster.type == COW) {
+		gotoMonster(monster, 1);
+		printf("((_,...,_))");
+		gotoMonster(monster, 2);
+		printf("   |");
+		printf("\x1b[31m");  // 빨간색 텍스트
+		printf("o");
+		printf(" o");
+		printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
+		printf("|");
+		gotoMonster(monster, 3);
+		printf("   \\   /");
+		gotoMonster(monster, 4);
+		printf("    ^_^ ");
+	}
+	else if (monster.type == SPIDER) {
+		gotoMonster(monster, 1);
+		printf(" /\\ \\  / /\\ ");
+		gotoMonster(monster, 2);
+		printf("//\\\\");
+		printf("\x1b[31m");  // 빨간색 텍스트
+		printf(" ..");
+		printf("\x1b[0m");   // 색상을 원래 상태(기본값)로 되돌림
+		printf(" //\\\\");
+		gotoMonster(monster, 3);
+		printf("//\\((  ))/\\\\");
+		gotoMonster(monster, 4);
+		printf("/  < `' >  \\");
+	}
 	
 }
 
@@ -868,9 +956,9 @@ void printMonster(Monster monster) {
 * @params monster : 출력을 지울 몬스터 객체
 */
 void eraseMonster(Monster monster) {
-	for (int i = -1; i < monster.size; i++) {
+	for (int i = -1; i < monsterInfoArray[monster.type].size; i++) {
 		gotoMonster(monster, i);
-		printf("       ");
+		printf("            ");
 	}
 }
 
@@ -879,9 +967,9 @@ void eraseMonster(Monster monster) {
 */
 void printMonsters(Player *player,Monsters* monsters) {
 	for (int i = monsters->startIndex; i < monsters->count; i++) {
-		if (MONSTER_SPEED_CONST / monsters->monster[i].speed == monsters->monster[i].speedCount) {
-			if (monsters->monster[i].yPos + 1 >= PLAYER_YPOS - monsters->monster[i].size) {
-				getDamage(player,monsters->monster[i].damage - levelUpOptionsArray[2].level);
+		if (MONSTER_SPEED_CONST / monsterInfoArray[monsters->monster[i].type].speed == monsters->monster[i].speedCount) {
+			if (monsters->monster[i].yPos + 1 >= PLAYER_YPOS - monsterInfoArray[monsters->monster[i].type].size) {
+				getDamage(player, monsterInfoArray[monsters->monster[i].type].damage - levelUpOptionsArray[2].level);
 				removeMonster(monsters, i);
 				eraseMonster(monsters->monster[i]);
 			}
@@ -924,16 +1012,16 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 		for (int j = monsters->startIndex; j < monsters->count; j++) {
 			// 몬스터의 위치가 총알의 위치와 일치할 경우 데미지 생성, 총알 출력하지 않도록 pass를 false로 변경
 			if (monsters->monster[j].position == bullets->bullet[i].position &&
-				monsters->monster[j].yPos + monsters->monster[j].size - 1 >= bullets->bullet[i].yPos) {
-				int damage = bullets->damage;
+				monsters->monster[j].yPos + monsterInfoArray[monsters->monster[j].type].size - 1 >= bullets->bullet[i].yPos) {
+				int damage = bullets->damage + levelUpOptionsArray[1].level * 2;
 				monsters->monster[j].life -= damage;
 				monsters->monster[j].damageReceived = damage;
-				createDamage(damages, monsters->monster[j], damage + levelUpOptionsArray[1].level * 2);
+				createDamage(damages, monsters->monster[j], damage );
 				if (monsters->monster[j].life <= 0) {
 					removeMonster(monsters, j);
 					eraseMonster(monsters->monster[j]);
 					score += 100;
-					levelUp = monsters->monster[j].xp;
+					levelUp = monsterInfoArray[monsters->monster[j].type].xp;
 				}
 				pass = false;
 			}
@@ -960,7 +1048,7 @@ void removeDamages(Damages* damages, int index) {
 
 void eraseDamage(Damage damage) {
 	gotoDamage(damage);
-	printf(" ");
+	printf("  ");
 }
 
 void printDamages(Damages* damages) {
@@ -1012,11 +1100,11 @@ void printMenu() {
 }
 
 
-void selectMenu() {
+void selectMenu(Player *player) {
 	currentMode = selectedMenuIndex + 1;
 	playSound(SELECT);
 	if (currentMode == 1) {
-		startGame();
+		startGame(player);
 	}
 	else if (currentMode == 2) {
 		playBgm();
@@ -1035,7 +1123,7 @@ void selectMenu() {
 	}
 }
 
-void moveMenuCursor() {
+void moveMenuCursor(Player *player) {
 	if (GetAsyncKeyState(0x28) & 0x8000) {
 			if (selectedMenuIndex == 2) return;
 			playNaviSound();
@@ -1055,26 +1143,77 @@ void moveMenuCursor() {
 			printf("▶");
 	}
 	else if (GetAsyncKeyState(0x0D) & 0x8000) {
-		selectMenu();
+		selectMenu(player);
 	}
 }
 
 void moveLevelUpSelectCursor(Player *player) {
 	// 왼쪽
 	if (GetAsyncKeyState(0x25) & 0x8000) {
-		levelUpOptionsArray[levelUpNum[0]].level++;
+		if (levelUpNum[0] == 5) {
+			levelUpOptionsArray[5].level = 5;
+			player->weapon = RIFLE;
+		}
+		else if (levelUpNum[0] == 4) {
+			levelUpOptionsArray[4].level = 5;
+			player->weapon = SNIPER;;
+		}
+		else {
+			levelUpOptionsArray[levelUpNum[0]].level++;
+		}
+		if (levelUpOptionsArray[levelUpNum[0]].level >= 5) {
+			if (weaponActivated == false) {
+				levelUpOptionsArray[4].level = 0;
+				levelUpOptionsArray[5].level = 0;
+				weaponActivated = true;
+			}
+		}
 		currentMode = 1;
 		reprintGame(player);
 	}
 	// 아래
 	else if (GetAsyncKeyState(0x28) & 0x8000) {
-		levelUpOptionsArray[levelUpNum[1]].level++;
+		if (levelUpNum[1] == 5 ) {
+			levelUpOptionsArray[5].level = 5;
+			player->weapon = RIFLE;
+		}
+		else if (levelUpNum[1] == 4 ) {
+			levelUpOptionsArray[4].level = 5;
+			player->weapon = SNIPER;;
+		}
+		else {
+			levelUpOptionsArray[levelUpNum[1]].level++;
+		}
+		if (levelUpOptionsArray[levelUpNum[1]].level >= 5) {
+			if (weaponActivated == false) {
+				levelUpOptionsArray[4].level = 0;
+				levelUpOptionsArray[5].level = 0;
+				weaponActivated = true;
+			}
+		}
 		currentMode = 1;
 		reprintGame(player);
 	}
 	// 오른쪽
 	else if (GetAsyncKeyState(0x27) & 0x8000) {
-		levelUpOptionsArray[levelUpNum[2]].level++;
+		if (levelUpNum[2] == 5) {
+			levelUpOptionsArray[5].level = 5;
+			player->weapon = RIFLE;
+		}
+		else if (levelUpNum[2] == 4) {
+			levelUpOptionsArray[4].level = 5;
+			player->weapon = SNIPER;;
+		}
+		else {
+			levelUpOptionsArray[levelUpNum[2]].level++;
+		}
+		if (levelUpOptionsArray[levelUpNum[2]].level >= 5) {
+			if (weaponActivated == false) {
+				levelUpOptionsArray[4].level = 0;
+				levelUpOptionsArray[5].level = 0;
+				weaponActivated = true;
+			}
+		}
 		currentMode = 1;
 		reprintGame(player);
 	}
@@ -1087,6 +1226,13 @@ int main() {
 	cursorInfo.bVisible = FALSE;
 	SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cursorInfo);
 	srand(time(NULL));
+
+	// 게임 시작 시간 저장
+	DWORD startTime = GetTickCount();
+
+	// 몬스터 타입 증가 시간 간격
+	const DWORD monsterTypeIncreaseInterval = 20000; // 20초
+
 
 	// 플레이어 초기화 
 	Player player = { PISTOL,0,10,10,1,1,0 };
@@ -1120,7 +1266,7 @@ int main() {
 	while (1) {
 		switch (currentMode) {
 		case 0:
-			moveMenuCursor();
+			moveMenuCursor(&player);
 			break;
 
 		case 1:
@@ -1147,11 +1293,23 @@ int main() {
 				currentMode = 0;
 				system("cls");
 				printMenu();
+				playBgm();
 			}
 			break;
 		case 3:
 			moveLevelUpSelectCursor(&player);
 			break;
+		}
+		if (currentMode == 1) {
+			DWORD currentTime = GetTickCount();
+			if (currentTime - startTime >= monsterTypeIncreaseInterval && monsterTypeNumLimit < 3) {
+				// 몬스터 타입 증가
+				monsterTypeNumLimit++;
+				// 다음 증가를 위한 시간 업데이트
+				startTime = currentTime;
+				gotoxy(0, 1);
+				printf("%d", monsterTypeNumLimit);
+			}
 		}
 	}
 
