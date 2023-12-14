@@ -67,7 +67,7 @@ enum color {
 // 플레이어 색상 설정
 color playerColor = WHITE;
 
-// 몬스터 종류
+// 몬스터 종류        
 typedef enum monsterType
 {
 	CAT, COW, SPIDER
@@ -124,6 +124,7 @@ typedef struct monsterInfo {
 	int size;
 	int damage;
 	int xp;
+	int point;
 }MonsterInfo;
 
 typedef struct monster {
@@ -171,9 +172,9 @@ typedef struct damages {
 }Damages;
 
 MonsterInfo monsterInfoArray[NUM_MONSTER_TYPE] = {
-	{16,1,3,2,20}, // CAT
-	{28,1,4,4,15}, // COW
-	{40,1,4,6,10}  // SPIDER
+	{16,1,3,2,20,100}, // CAT
+	{28,1,4,4,15,200}, // COW
+	{40,1,4,6,10,300}  // SPIDER
 };
 
 LevelUpOptions levelUpOptionsArray[LEVEL_UP_NUM] = {
@@ -951,6 +952,39 @@ void printMonster(Monster monster) {
 	
 }
 
+void printGameOver() {
+	int value = 35;
+	int y = 7;
+	gotoxy(value, y);
+	printf(" ________  ________  _____ ______   _______");
+	gotoxy(value, y + 1);
+	printf("|\\   ____\\|\\   __  \\|\\   _ \\  _   \\|\\  ___ \\");
+	gotoxy(value, y + 2);
+	printf("\\ \\  \\___|\\ \\  \\|\\  \\ \\  \\\\\\__\\ \\  \\ \\   __/|");
+	gotoxy(value, y + 3);
+	printf(" \\ \\  \\  __\\ \\   __  \\ \\  \\\\|__| \\  \\ \\  \\_|/");
+	gotoxy(value, y + 4);
+	printf("  \\ \\  \\|\\  \\ \\  \\ \\  \\ \\  \\    \\ \\  \\ \\  \\_|\\ \\");
+	gotoxy(value, y + 5);
+	printf("   \\ \\_______\\ \\__\\ \\__\\ \\__\\    \\ \\__\\ \\_______\\");
+	gotoxy(value, y + 6);
+	printf("    \\|_______|\\|__|\\|__|\\|__|     \\|__|\\|_______|");
+	gotoxy(value, y + 7);
+	printf("       ________  ___      ___ _______   ________");
+	gotoxy(value, y + 8);
+	printf("      |\\   __  \\|\\  \\    /  /|\\  ___ \\ |\\   __  \\");
+	gotoxy(value, y + 9);
+	printf("      \\ \\  \\|\\  \\ \\  \\  /  / | \\   __/|\\ \\  \\|\\  \\");
+	gotoxy(value, y + 10);
+	printf("       \\ \\  \\\\\\  \\ \\  \\/  / / \\ \\  \\_|/_\\ \\   _  _\\");
+	gotoxy(value, y + 11);
+	printf("        \\ \\  \\\\\\  \\ \\    / /   \\ \\  \\_|\\ \\ \\  \\\\  \\|");
+	gotoxy(value, y + 12);
+	printf("         \\ \\_______\\ \\__/ /     \\ \\_______\\ \\__\\\\ _\\");
+	gotoxy(value, y + 13);
+	printf("          \\|_______|\\|__|/       \\|_______|\\|__|\\|__|");
+}
+
 /**
 * 몬스터 출력을 지우는 함수
 * @params monster : 출력을 지울 몬스터 객체
@@ -983,6 +1017,10 @@ void printMonsters(Player *player,Monsters* monsters) {
 			monsters->monster[i].speedCount++;
 		}
 	}
+	if (player->hp <= 0) {
+		currentMode = 4;
+		printGameOver();
+	}
 }
 
 
@@ -1004,7 +1042,7 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 
 		// pass 값이 false가 되면 해당 총알 삭제
 		boolean pass = true;
-		boolean levelUp = 0;
+		int levelUp = 0;
 		// 총알이 스테이지를 넘어가면 삭제
 		if (bullets->bullet[i].yPos < 3) {
 			pass = false;
@@ -1020,7 +1058,8 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 				if (monsters->monster[j].life <= 0) {
 					removeMonster(monsters, j);
 					eraseMonster(monsters->monster[j]);
-					score += 100;
+					//몬스터 처치 시 몬스터의 점수 + 플레이어와 몬스터 간의 거리 차 x 10를 점수로 얻음
+					score += monsterInfoArray[monsters->monster[j].type].point + (PLAYER_YPOS - monsters->monster[j].yPos) * 10;
 					levelUp = monsterInfoArray[monsters->monster[j].type].xp;
 				}
 				pass = false;
@@ -1036,7 +1075,7 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 		}
 
 		// 총알 때문에 출력이 지워져서 맨 뒤로 뺌
-		if (levelUp) {
+		if (levelUp > 0) {
 			getXP(player, levelUp);
 		}
 	}
@@ -1299,6 +1338,8 @@ int main() {
 		case 3:
 			moveLevelUpSelectCursor(&player);
 			break;
+		case 4:
+			printGameOver();
 		}
 		if (currentMode == 1) {
 			DWORD currentTime = GetTickCount();
