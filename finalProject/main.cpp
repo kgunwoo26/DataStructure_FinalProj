@@ -45,9 +45,9 @@
 // 몬스터 상수
 #define INIT_MAX_MONSTER 100
 #define MONSTER_INIT_YPOS 3
-#define SUMMON_DELAY_TIME 100
+#define SUMMON_DELAY_TIME 60
 #define NUM_MONSTER_TYPE 3
-#define MONSTER_SPEED_CONST 10
+#define MONSTER_SPEED_CONST 5
 
 // 데미지 상수
 #define INIT_MAX_DAMAGE 100
@@ -88,7 +88,7 @@ enum sound
 };
 
 typedef enum weapons {
-	PISTOL, RIFLE, SHOTGUN, SNIPER
+	PISTOL, RIFLE , SHOTGUN , SNIPER
 }Weapon;
 
 // 사용자 정보
@@ -243,7 +243,7 @@ HANDLE hMenuThread;
 int score = 0;
 
 //파일
-int maxUsers = 50;
+int maxUsers = 500;
 
 // 현재 모드 0: 메뉴 1: 게임 플레이 2: 랭킹
 int currentMode = 0;
@@ -259,6 +259,14 @@ int monsterTypeNumLimit = 1;
 
 // 무기 선택 활성화 여부
 bool weaponActivated = false;
+
+// x,y 위치로 커서를 이동
+void gotoxy(int x, int y) {
+	COORD coord;
+	coord.X = x;
+	coord.Y = y;
+	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+}
 
 // 사용자 정보를 파일에서 읽어오는 함수
 int readFromFile(struct User* users, const char* filename) {
@@ -332,24 +340,60 @@ void showRanking(struct User* users, int maxUsers) {
 	printf("\n\n");
 
 	for (int i = 0; i < numUsers; ++i) {
-		if (i >= 9) {
-			printf("                                          %d등 : %s                   %d점\n\n", i + 1, users[i].name, users[i].score);
-		}
-		else {
-			printf("                                           %d등 : %s                   %d점\n\n", i + 1, users[i].name, users[i].score);
-		}
+		gotoxy(42, 8 + (2*i));
+		printf("%d등 : %s", i+1, users[i].name);
+		gotoxy(70, 8 + (2 * i));
+		printf("%d점", users[i].score);
 	}
 	for (int i = numUsers; i < 10; i++) {
-		if (i >= 9) {
-			printf("                                          %d등 : OOO                   OOOO점\n", i + 1);
-		}
-		else {
-			printf("                                           %d등 : OOO                   OOOO점\n\n", i + 1);
-		}
+		gotoxy(42, 8 + (2 * i));
+		printf("%d등 : OOOO", i);
+		gotoxy(70, 8 + (2 * i));
+		printf("OOOO점");
 	}
-	printf("\n\n< BackSpace   메인 화면으로");
+	printf("\n\n\n< BackSpace   메인 화면으로");
 }
 
+void showRankingEnd(struct User* users, int maxUsers) {
+	// 파일에서 기존 사용자 정보 읽어오기
+	int numUsers = readFromFile(users, FILE_NAME);
+
+	// 새로운 사용자 정보 입력 받기
+	/*printf("이름을 입력해주세요! (점수): ");
+	scanf("%s %d", users[numUsers].name, &users[numUsers].score);
+	numUsers++;*/
+
+	// 점수를 기준으로 사용자 정보 정렬
+	sortByScore(users, numUsers);
+
+	// 파일에 사용자 정보 저장
+	saveToFile(users, numUsers, FILE_NAME);
+
+	// 정렬된 사용자 정보 및 등수 출력
+	printf("                                    ______   ___   _   _  _   __ _____  _   _  _____ \n");
+	printf("                                    | ___ \\ / _ \\ | \\ | || | / /|_   _|| \\ | ||  __ \\ \n");
+	printf("                                    | |_/ // /_\\ \\|  \\| || |/ /   | |  |  \\| || |  \\/ \n");
+	printf("                                    |    / |  _  || . ` ||    \\   | |  | . ` || | __ \n");
+	printf("                                    | |\\ \\ | | | || |\\  || |\\  \\ _| |_ | |\\  || |_\\ \\ \n ");
+	printf("                                   \\_| \\_|\\_| |_/\\_| \\_/\\_| \\_/ \\___/ \\_| \\_/ \\____/ \n ");
+	printf("\n\n");
+
+
+	for (int i = 0; i < numUsers; ++i) {
+		gotoxy(42, 8 + (2 * i));
+		printf("%d등 : %s", i + 1, users[i].name);
+		gotoxy(70, 8 + (2 * i));
+		printf("%d점", users[i].score);
+	}
+	for (int i = numUsers; i < 10; i++) {
+		gotoxy(42, 8 + (2 * i));
+		printf("%d등 : OOOO", i);
+		gotoxy(70, 8 + (2 * i));
+		printf("OOOO점");
+	}
+
+	printf("\n\n\n< BackSpace 버튼을 입력하여 종료");
+}
 
 // player의 위치로 커서를 이동
 void gotoPlayer(Player player, int xpos, int ypos) {
@@ -380,14 +424,6 @@ void gotoDamage(Damage damage) {
 	COORD coord;
 	coord.X = INIT_XPOS + ((damage.position - 1) * XPOS_GAP) + DAMAGE_XPOS_CONST;
 	coord.Y = damage.yPos - damage.count;
-	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
-}
-
-// x,y 위치로 커서를 이동
-void gotoxy(int x, int y) {
-	COORD coord;
-	coord.X = x;
-	coord.Y = y;
 	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
@@ -820,9 +856,26 @@ void fireWeapon(Player* player, Bullets* bullets) {
 	// 현재 시간을 가져옴
 	DWORD currentTime = GetTickCount();
 
+	int weaponSpeed = 0;
+	switch (player->weapon)
+	{
+	case 0:
+		weaponSpeed = 500;
+		break;
+	case 1:
+		weaponSpeed = 150;
+		break;
+	case 3:
+		weaponSpeed = 500;
+		break;
+	default :
+		weaponSpeed = 500;
+		break;
+	}
+
 	if (GetAsyncKeyState(0x20) & 0x8000) {
 		// 스페이스 바가 눌린 후 딜레이 이전에는 발사하지 않음
-		if (currentTime - lastFireTime >= 500 - levelUpOptionsArray[3].level * 50) {
+		if (currentTime - lastFireTime >= weaponSpeed - levelUpOptionsArray[3].level * 50) {
 			createBullet(bullets, player->position);
 			lastFireTime = currentTime; // 마지막 발사 시간 업데이트
 		}
@@ -952,6 +1005,56 @@ void printMonster(Monster monster) {
 	
 }
 
+void printRankInput() {
+	char name[100] = { '0', };
+	struct User* users = (struct User*)malloc(maxUsers * sizeof(struct User));
+	int numUsers = readFromFile(users, FILE_NAME);
+	int x = 45;
+	int y = 10;
+	gotoxy(x, y + 0);
+	printf("┌─────────────────────────────────────┐\n");
+	gotoxy(x, y + 1);
+	printf("│                                     │\n");
+	gotoxy(x, y + 2);
+	printf("│                                     │\n");
+	gotoxy(x, y + 3);
+	printf("│                                     │\n");
+	gotoxy(x, y + 4);
+	printf("│                                     │\n");
+	gotoxy(x, y + 5);
+	printf("│                                     │\n");
+	gotoxy(x, y + 6);
+	printf("│                                     │\n");
+	gotoxy(x, y + 7);
+	printf("│                                     │\n");
+	gotoxy(x, y + 8);
+	printf("│                                     │\n");
+	gotoxy(x, y + 9);
+	printf("└─────────────────────────────────────┘\n");
+	gotoxy(x + 3, y + 3);
+	printf("랭킹에 등록할 이름을 입력하세요.");
+	gotoxy(x + 3, y + 6);
+	printf("이름 : ");
+	gotoxy(x + 10, y + 6);
+	fgets(name, sizeof(name), stdin);
+	strcpy(users[numUsers].name, name);
+	users[numUsers].score = score;
+	numUsers++;
+	saveToFile(users, numUsers, FILE_NAME);
+	if (users == NULL) {
+		perror("error");
+		exit(EXIT_FAILURE);
+	}
+	//system("cls");
+	//showRankingEnd(users, maxUsers);
+	//while (1) {
+	//	if (GetAsyncKeyState(0x08) & 0x8000) {
+	//		exit(0);
+	//		break;
+	//	}
+	//}
+}
+
 void printGameOver() {
 	int value = 35;
 	int y = 7;
@@ -983,6 +1086,18 @@ void printGameOver() {
 	printf("         \\ \\_______\\ \\__/ /     \\ \\_______\\ \\__\\\\ _\\");
 	gotoxy(value, y + 13);
 	printf("          \\|_______|\\|__|/       \\|_______|\\|__|\\|__|");
+	gotoxy(value, y + 14);
+	printf("                                                                 ");
+	gotoxy(value, y + 15);
+	printf("                                Lctrl : 랭킹 이름 입력 ");
+	while (1) {
+		 if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) {
+			// 오른쪽 컨트롤 키가 눌렸을 때 수행할 작업
+			 printRankInput();
+			break;
+		}
+	}
+	
 }
 
 /**
@@ -1001,7 +1116,7 @@ void eraseMonster(Monster monster) {
 */
 void printMonsters(Player *player,Monsters* monsters) {
 	for (int i = monsters->startIndex; i < monsters->count; i++) {
-		if (MONSTER_SPEED_CONST / monsterInfoArray[monsters->monster[i].type].speed == monsters->monster[i].speedCount) {
+		if ((MONSTER_SPEED_CONST)/ monsterInfoArray[monsters->monster[i].type].speed == monsters->monster[i].speedCount) {
 			if (monsters->monster[i].yPos + 1 >= PLAYER_YPOS - monsterInfoArray[monsters->monster[i].type].size) {
 				getDamage(player, monsterInfoArray[monsters->monster[i].type].damage - levelUpOptionsArray[2].level);
 				removeMonster(monsters, i);
@@ -1018,7 +1133,6 @@ void printMonsters(Player *player,Monsters* monsters) {
 		}
 	}
 	if (player->hp <= 0) {
-		currentMode = 4;
 		printGameOver();
 	}
 }
@@ -1050,8 +1164,16 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 		for (int j = monsters->startIndex; j < monsters->count; j++) {
 			// 몬스터의 위치가 총알의 위치와 일치할 경우 데미지 생성, 총알 출력하지 않도록 pass를 false로 변경
 			if (monsters->monster[j].position == bullets->bullet[i].position &&
-				monsters->monster[j].yPos + monsterInfoArray[monsters->monster[j].type].size - 1 >= bullets->bullet[i].yPos) {
-				int damage = bullets->damage + levelUpOptionsArray[1].level * 2;
+				(monsters->monster[j].yPos + monsterInfoArray[monsters->monster[j].type].size - 1 == bullets->bullet[i].yPos ||
+					monsters->monster[j].yPos + monsterInfoArray[monsters->monster[j].type].size - 1 == bullets->bullet[i].yPos)) {
+				int damage;
+				if (player->weapon == SNIPER) {
+					damage = bullets->damage + levelUpOptionsArray[1].level * 4 + 4;
+				}
+				else {
+					damage = bullets->damage + levelUpOptionsArray[1].level * 2;
+				}
+				
 				monsters->monster[j].life -= damage;
 				monsters->monster[j].damageReceived = damage;
 				createDamage(damages, monsters->monster[j], damage );
@@ -1062,7 +1184,9 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 					score += monsterInfoArray[monsters->monster[j].type].point + (PLAYER_YPOS - monsters->monster[j].yPos) * 10;
 					levelUp = monsterInfoArray[monsters->monster[j].type].xp;
 				}
-				pass = false;
+				if (player->weapon != SNIPER) {
+					pass = false;
+				}
 			}
 		}
 		if (pass == false) {
@@ -1192,10 +1316,14 @@ void moveLevelUpSelectCursor(Player *player) {
 		if (levelUpNum[0] == 5) {
 			levelUpOptionsArray[5].level = 5;
 			player->weapon = RIFLE;
+			levelUpOptionsArray[1].level = 0;
+			levelUpOptionsArray[3].level = 0;
 		}
 		else if (levelUpNum[0] == 4) {
 			levelUpOptionsArray[4].level = 5;
-			player->weapon = SNIPER;;
+			player->weapon = SNIPER;
+			levelUpOptionsArray[1].level = 0;
+			levelUpOptionsArray[3].level = 0;
 		}
 		else {
 			levelUpOptionsArray[levelUpNum[0]].level++;
@@ -1215,10 +1343,14 @@ void moveLevelUpSelectCursor(Player *player) {
 		if (levelUpNum[1] == 5 ) {
 			levelUpOptionsArray[5].level = 5;
 			player->weapon = RIFLE;
+			levelUpOptionsArray[1].level = 0;
+			levelUpOptionsArray[3].level = 0;
 		}
 		else if (levelUpNum[1] == 4 ) {
 			levelUpOptionsArray[4].level = 5;
-			player->weapon = SNIPER;;
+			player->weapon = SNIPER;
+			levelUpOptionsArray[1].level = 0;
+			levelUpOptionsArray[3].level = 0;
 		}
 		else {
 			levelUpOptionsArray[levelUpNum[1]].level++;
@@ -1238,10 +1370,14 @@ void moveLevelUpSelectCursor(Player *player) {
 		if (levelUpNum[2] == 5) {
 			levelUpOptionsArray[5].level = 5;
 			player->weapon = RIFLE;
+			levelUpOptionsArray[1].level = 0;
+			levelUpOptionsArray[3].level = 0;
 		}
 		else if (levelUpNum[2] == 4) {
 			levelUpOptionsArray[4].level = 5;
-			player->weapon = SNIPER;;
+			player->weapon = SNIPER;
+			levelUpOptionsArray[1].level = 0;
+			levelUpOptionsArray[3].level = 0;
 		}
 		else {
 			levelUpOptionsArray[levelUpNum[2]].level++;
@@ -1270,7 +1406,7 @@ int main() {
 	DWORD startTime = GetTickCount();
 
 	// 몬스터 타입 증가 시간 간격
-	const DWORD monsterTypeIncreaseInterval = 20000; // 20초
+	const DWORD monsterTypeIncreaseInterval = 40000; // 40초
 
 
 	// 플레이어 초기화 
@@ -1302,7 +1438,9 @@ int main() {
 
 	printMenu();
 	playBgm();
-	while (1) {
+
+	boolean loop = true;
+	while (loop) {
 		switch (currentMode) {
 		case 0:
 			moveMenuCursor(&player);
@@ -1316,7 +1454,7 @@ int main() {
 				summonCount = 0;
 			}
 			summonCount++;
-			printMonsters(&player,&monsters);
+			printMonsters(&player, &monsters);
 			printDamages(&damages);
 			printHP(&player);
 			printScore();
@@ -1338,18 +1476,20 @@ int main() {
 		case 3:
 			moveLevelUpSelectCursor(&player);
 			break;
+
 		case 4:
-			printGameOver();
+			loop = false;
+			break;
 		}
 		if (currentMode == 1) {
 			DWORD currentTime = GetTickCount();
-			if (currentTime - startTime >= monsterTypeIncreaseInterval && monsterTypeNumLimit < 3) {
+			if (currentTime - startTime >= monsterTypeIncreaseInterval && monsterTypeNumLimit < 5) {
 				// 몬스터 타입 증가
 				monsterTypeNumLimit++;
 				// 다음 증가를 위한 시간 업데이트
 				startTime = currentTime;
 				gotoxy(0, 1);
-				printf("%d", monsterTypeNumLimit);
+				printf("%d", monsterTypeNumLimit); 
 			}
 		}
 	}
