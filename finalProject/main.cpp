@@ -681,7 +681,7 @@ void getXP(Player* player, int xpReceived) {
 		player->level++;
 		printLevel(player);
 		printLevelUpSelect();
-		currentMode = 4;
+		currentMode = ;
 	}
 	printXP(player);
 }
@@ -1464,7 +1464,7 @@ int main() {
 				playBgm();
 			}
 			break;
-		case 4:
+		case 3:
 			moveLevelUpSelectCursor(&player);
 			break;
 		}
