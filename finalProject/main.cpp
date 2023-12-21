@@ -47,7 +47,7 @@
 #define MONSTER_INIT_YPOS 3
 #define SUMMON_DELAY_TIME 60
 #define NUM_MONSTER_TYPE 3
-#define MONSTER_SPEED_CONST 5
+#define MONSTER_SPEED_CONST 10
 
 // 데미지 상수
 #define INIT_MAX_DAMAGE 100
@@ -901,8 +901,6 @@ void createDamage(Damages* damages, Monster monster, int damageReceived) {
 /**
 * TODO: monsters->monster을 큐로 바꿀 예정
 * 몬스터가 플레이어에게 닿았거나 데미지를 받아 죽은 경우 삭제하는 함수
-* (현재는 가장 첫번째로 소환된 몬스터를 삭제하도록 구현되어 있음)
-*
 * @params monster : 몬스터 배열의 주소 값
 * @params index : monster의 인덱스 값
 */
@@ -1035,8 +1033,7 @@ void printRankInput() {
 	printf("랭킹에 등록할 이름을 입력하세요.");
 	gotoxy(x + 3, y + 6);
 	printf("이름 : ");
-	gotoxy(x + 10, y + 6);
-	fgets(name, sizeof(name), stdin);
+	scanf("%s", &name);
 	strcpy(users[numUsers].name, name);
 	users[numUsers].score = score;
 	numUsers++;
@@ -1045,14 +1042,14 @@ void printRankInput() {
 		perror("error");
 		exit(EXIT_FAILURE);
 	}
-	//system("cls");
-	//showRankingEnd(users, maxUsers);
-	//while (1) {
-	//	if (GetAsyncKeyState(0x08) & 0x8000) {
-	//		exit(0);
-	//		break;
-	//	}
-	//}
+	system("cls");
+	showRankingEnd(users, maxUsers);
+	while (1) {
+		if (GetAsyncKeyState(0x08) & 0x8000) {
+			exit(0);
+			break;
+		}
+	}
 }
 
 void printGameOver() {
@@ -1116,7 +1113,7 @@ void eraseMonster(Monster monster) {
 */
 void printMonsters(Player *player,Monsters* monsters) {
 	for (int i = monsters->startIndex; i < monsters->count; i++) {
-		if ((MONSTER_SPEED_CONST)/ monsterInfoArray[monsters->monster[i].type].speed == monsters->monster[i].speedCount) {
+		if ((MONSTER_SPEED_CONST) / (monsterInfoArray[monsters->monster[i].type].speed )== monsters->monster[i].speedCount) {
 			if (monsters->monster[i].yPos + 1 >= PLAYER_YPOS - monsterInfoArray[monsters->monster[i].type].size) {
 				getDamage(player, monsterInfoArray[monsters->monster[i].type].damage - levelUpOptionsArray[2].level);
 				removeMonster(monsters, i);
@@ -1164,15 +1161,10 @@ void printBullets(Player *player, Bullets* bullets, Monsters* monsters, Damages*
 		for (int j = monsters->startIndex; j < monsters->count; j++) {
 			// 몬스터의 위치가 총알의 위치와 일치할 경우 데미지 생성, 총알 출력하지 않도록 pass를 false로 변경
 			if (monsters->monster[j].position == bullets->bullet[i].position &&
-				(monsters->monster[j].yPos + monsterInfoArray[monsters->monster[j].type].size - 1 == bullets->bullet[i].yPos ||
-					monsters->monster[j].yPos + monsterInfoArray[monsters->monster[j].type].size - 1 == bullets->bullet[i].yPos)) {
+				((monsters->monster[j].yPos + monsterInfoArray[monsters->monster[j].type].size - 1 >= bullets->bullet[i].yPos)&&
+					(monsters->monster[j].yPos <= bullets->bullet[i].yPos))) {
 				int damage;
-				if (player->weapon == SNIPER) {
-					damage = bullets->damage + levelUpOptionsArray[1].level * 4 + 4;
-				}
-				else {
-					damage = bullets->damage + levelUpOptionsArray[1].level * 2;
-				}
+				damage = bullets->damage + levelUpOptionsArray[1].level * 2;
 				
 				monsters->monster[j].life -= damage;
 				monsters->monster[j].damageReceived = damage;
@@ -1483,9 +1475,14 @@ int main() {
 		}
 		if (currentMode == 1) {
 			DWORD currentTime = GetTickCount();
-			if (currentTime - startTime >= monsterTypeIncreaseInterval && monsterTypeNumLimit < 5) {
-				// 몬스터 타입 증가
-				monsterTypeNumLimit++;
+			if (currentTime - startTime >= monsterTypeIncreaseInterval && monsterTypeNumLimit < 3) {
+				if (monsterTypeNumLimit < 3) {
+					// 몬스터 타입 증가
+					monsterTypeNumLimit++;
+				}
+				for (int i = 0; i < 3; i++) {
+					monsterInfoArray[i].speed++;
+				}
 				// 다음 증가를 위한 시간 업데이트
 				startTime = currentTime;
 				gotoxy(0, 1);
