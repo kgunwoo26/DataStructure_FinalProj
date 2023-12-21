@@ -1,6 +1,4 @@
 test44 1890
-rlldkfjj 1220
-test22 1130
 test33 960
-test666 430
 test12 400
+

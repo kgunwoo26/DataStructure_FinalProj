@@ -681,7 +681,7 @@ void getXP(Player* player, int xpReceived) {
 		player->level++;
 		printLevel(player);
 		printLevelUpSelect();
-		currentMode = 3;
+		currentMode = 4;
 	}
 	printXP(player);
 }
@@ -1431,8 +1431,7 @@ int main() {
 	printMenu();
 	playBgm();
 
-	boolean loop = true;
-	while (loop) {
+	while (1) {
 		switch (currentMode) {
 		case 0:
 			moveMenuCursor(&player);
@@ -1465,12 +1464,8 @@ int main() {
 				playBgm();
 			}
 			break;
-		case 3:
-			moveLevelUpSelectCursor(&player);
-			break;
-
 		case 4:
-			loop = false;
+			moveLevelUpSelectCursor(&player);
 			break;
 		}
 		if (currentMode == 1) {
