@@ -1398,7 +1398,7 @@ int main() {
 	DWORD startTime = GetTickCount();
 
 	// 몬스터 타입 증가 시간 간격
-	const DWORD monsterTypeIncreaseInterval = 40000; // 40초
+	const DWORD monsterTypeIncreaseInterval = 40000; // 20초
 
 
 	// 플레이어 초기화 
